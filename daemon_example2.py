@@ -1,17 +1,20 @@
 import time
 import socket
-#import psutil
 import os
 import subprocess
 
 #from daemonize import Daemonize
 
-daemon_name = 'chk_status'
+current_time = time.strftime('%Y-%m-%d %H:%M:%S')
+current_time_name=time.strftime('%Y%m%d')
+daemon_name = 'chk_status_driver'
+caminho_completo = '/tmp/{current_time_name}-{daemon_name}.log'
 
 def run_bash_command(command):
     process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     output, error = process.communicate()
     return output.decode(), error.decode()
+#roda comandos no bash do equipamento
 
 def capture_first_line(command):
     try:
@@ -25,15 +28,16 @@ def capture_first_line(command):
             return ''
     except Exception as e:
         return f"Erro ao executar o comando: {str(e)}"
+#roda o bash
 
 
 def check_internet():
-    try:
-        # Tente fazer uma conexão com um servidor remoto (por exemplo, o Google)
+    try: 
         socket.create_connection(("www.google.com", 80))
         return True
     except OSError:
         return False
+# Tente fazer uma conexão com um servidor remoto (por exemplo, o Google)
 
 def get_machine_storage():
     command_expand = 'sudo raspi-config --expand-rootfs'
@@ -60,31 +64,13 @@ def get_machine_storage():
         #phrase= f'total-size: {total_size}'
         phrase = total_size
     return phrase
+#mostra o tamanho do disco
 
 def clear_log_file(log_file_path):
     with open(log_file_path, 'w') as file:
-        file.write("") 
+        file.write("")
+#apaga os arquivos de log passados 
 
-# def check_disk_space(partition):
-#     disk_usage = psutil.disk_usage(partition)
-    
-#     total_size = disk_usage.total
-#     free_space = disk_usage.free
-#     used_space = disk_usage.used
-    
-#     formatted_info = (
-#         f"Disk Information for {partition}: "
-#         f"Total Size: {total_size / (1024 ** 3):.2f} GB + "
-#         f"Used Space: {used_space / (1024 ** 3):.2f} GB + "
-#         f"Free Space: {free_space / (1024 ** 3):.2f} GB"
-#     )
-    
-#     return formatted_info
-
-# Exemplo de uso
-# partition = '/' Pode ser a partição que desejar
-# disk_info = check_disk_space(partition)
-# print(disk_info)
 
 def chk_gps():
     gps_command = 'timeout 1 cat /dev/serial0 | grep -ia gsa'
@@ -95,6 +81,7 @@ def chk_gps():
         return 'GPS ON'
     else:
         return 'GPS OFF'
+#checa o gps a partir da primeira linha verificado se tiver A,3 tem gps e apresentando algo diferente disso esta sem sinal de gps
 
 def chk_camera():
     camera_command = 'pgrep camera'
@@ -103,18 +90,20 @@ def chk_camera():
         return 'Camera On'
     else:
         return 'Camera OFF'
+#Checa se a camera esta funcionando partindo do principio que checa se existe um numero de processo que identifica modulo de camera online
 
+def chk_name_log():
+    if os.path.exists(caminho_completo):
+        nome_do_arquivo = os.path.basename(caminho_completo)
+        print(f'O arquivo {nome_do_arquivo} existe.')
+    else:
+        print(f'O arquivo {caminho_completo} não existe.')
 
 def main():
-    log_file_path = f'/tmp/{daemon_name}.log'
+    log_file_path = f'/tmp/{current_time_name}-{daemon_name}.log'
     clear_log_file(log_file_path)  # Apaga o conteúdo do arquivo de log ao iniciar
     while True:
-        with open(f'/tmp/{daemon_name}.log', 'a') as file:
-            current_time = time.strftime('%Y-%m-%d %H:%M:%S')
-            #gps_command = 'cat /dev/serial0 | grep -ia gsa'
-            #linha1 = capture_first_line(gps_command)
-            #partition = '/dev/root'
-            #partition = '/boot/efi'
+        with open(f'/tmp/{current_time_name}-{daemon_name}.log', 'a') as file:
             size = get_machine_storage()
             status_gps=chk_gps()
             status_camera=chk_camera()
@@ -126,7 +115,7 @@ def main():
                 conncetion_chk = "Offline"
             file.write(f'{current_time} - Status conexao: {conncetion_chk} - Sd card: {size}  - {status_gps} - {status_camera}\n')
             print('Gerando log...')
-            #print(linha1[:10])
+            chk_name_log()
         time.sleep(3)
 
 
