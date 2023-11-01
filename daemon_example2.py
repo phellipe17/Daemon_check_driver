@@ -76,7 +76,7 @@ def chk_gps():
     gps_command = 'timeout 1 cat /dev/serial0 | grep -ia gsa'
     linha1 = capture_first_line(gps_command)
     linha1 = linha1[:10]
-    print(f' info gps: {linha1}')
+    #print(f' info gps: {linha1}')
     if ( linha1 == '$GNGSA,A,3' ):
         return 'GPS ON'
     else:
