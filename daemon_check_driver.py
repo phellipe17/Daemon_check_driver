@@ -8,7 +8,6 @@ import subprocess
 daemon_name = 'chk_status'
 
 
-
 # This function runs a shell command specified as command and returns its standard output and standard error as strings.
 def run_bash_command(command):
     process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -116,13 +115,12 @@ def chk_gps2():
     gps_data = ""
     for i in range(1024):
         #gps_data += os.read(gps_device, 2048)
-        gps_data += os.read(gps_device, 2048).decode('utf-8')  
-    if "$GNGSA,A,3" in gps_data or "$GNGSA,A,2" in gps_data:
-        #print("GPS: OK");    
+        gps_data += os.read(gps_device, 2048).decode('utf-8')
+    print(gps_data)  
+    if "$GNGSA,A,3" in gps_data or "$GNGSA,A,2" in gps_data:    
         #print("\033[1;32;40m GPS: OK \033[0;37;40m");
         return "GPS:\033[1;32;40mOK \033[0m"
     else:
-        #print("GPS: ERROR");
         #print("\033[1;31;40m GPS: ERROR \033[0;37;40m");
         return "GPS:\033[1;31;40mERROR \033[0m"
 
@@ -160,7 +158,6 @@ def main():
             imu = imu_check()
             file.write(f'{current_time} - Status conexao: {conncetion_chk} - Sd card: {size}  - {status_gps} - {status_camera} - IMU: {imu}\n')
             print('\033[1;32;40m Gerando log...\033[0m')
-            imu_check()
         time.sleep(3)
 
 
