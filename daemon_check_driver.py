@@ -57,9 +57,9 @@ def read_iccid():
     result, error=run_bash_command(command_icc)
     print(error)
     if 'OK' in result:
-        return '\033[1;32;40mSim card inserted\033[0m'
+        return '\033[1;32;40mSim inserted\033[0m'
     else:
-        return '\033[1;31;40msim card not inserted\033[0m'
+        return '\033[1;31;40mSim not inserted\033[0m'
 
 
 # check_internet(): This function checks for internet connectivity by attempting to create a connection to 
@@ -68,9 +68,9 @@ def check_internet():
     try:
         # Tente fazer uma conexão com um servidor remoto (por exemplo, o Google)
         socket.create_connection(("www.google.com", 80))
-        return '\033[1;32;40m Online \033[0m'
+        return '\033[1;32;40m Ok \033[0m'
     except OSError:
-        return '\033[1;31;40m Offline \033[0m'
+        return '\033[1;31;40m NOK \033[0m'
 
 # get_machine_storage(): This function calculates and returns the total and free storage space on the root filesystem. 
 # If the total storage is less than 10 GB, it attempts to expand the root filesystem and requests a reboot.
@@ -128,13 +128,13 @@ def chk_gps2():
         gps_data += os.read(gps_device, 2048).decode('utf-8') 
     if "$GNGSA,A,3" in gps_data or "$GNGSA,A,2" in gps_data:
         danger="\033[1;32;40mOK\033[0m"
-        phrase= "COM INFO DE SATELITE"
+        phrase= "\033[1;32;40mINFO SATELLITE\033[0m"
     elif "$GPRMC" in gps_data or "$GNRMC" in gps_data:
         danger ="\033[1;33;40mOK\033[0m"
-        phrase= "SEM INFO DE SATELITE"
+        phrase= "\033[1;33;40mNOINFO SATELLITE\033[0m"
     else:    
         danger="\033[1;31;40mNOK\033[0m"
-        phrase= "ERROR"
+        phrase= "\033[1;31;40mERROR\033[0m"
     return danger, phrase 
             
 
@@ -149,13 +149,21 @@ def chk_camera():
         return 'Camera:\033[1;32;40m ON \033[0m'
     else:
         return 'Camera:\033[1;31;40m OFF \033[0m'
+    
+def chk_dial_modem():
+    modem_command = 'pgrep wvdial'
+    result, error=run_bash_command(modem_command)
+    if(result != ''):
+        return '\033[1;32;40m ON \033[0m'
+    else:
+        return '\033[1;31;40m OFF \033[0m'
 
 def check_camera_status():
    try:
       subprocess.run(["raspistill", "-o", "/tmp/camera_test.jpg", "-w", "640", "-h", "480"], check=True,stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-      return"\033[1;32;40m CAMERA: OK \033[0m"
+      return"\033[1;32;40m OK\033[0m"
    except subprocess.CalledProcessError as e:
-      return f"\033[1;31;40m CAMERA: ERROR ({e.returncode})\033[0m"
+      return f"\033[1;31;40m ERROR({e.returncode})\033[0m"
 
 """
 The main part of the script starts here.
@@ -178,14 +186,15 @@ def main():
         a,b=chk_gps2()
         status_camera=check_camera_status()
         conncetion_chk = check_internet()
+        modem_status = chk_dial_modem()
         imu = imu_check()
         read_sim= read_iccid()
         file.write(f'{current_time} \n'
-                    f'Analise conexao:\n\t- {conncetion_chk} \n'
+                    f'Analise conexao:\n\t- connection internet: {conncetion_chk}\n\t- Modem Process:{modem_status} \n'
                     f'Analise Sd card:\n\t- Expanded:{c}\n\t- Free disk:{d} \n' 
                     f'Analise gps:\n\t- Health gps:{a} \n\t- Descriptiom: {b} \n'
-                    f'Analise Camera:\n\t- {status_camera}\n'
-                    f'Analise IMU:\n\t- {imu}\n'
+                    f'Analise Camera:\n\t- Camera: {status_camera}\n'
+                    f'Analise IMU:\n\t- Active: {imu}\n'
                     f'Analise Sim card:\n\t- {read_sim}\n')
     print('\033[1;32;40m Log gerado!\033[0m')
         #time.sleep(3)
