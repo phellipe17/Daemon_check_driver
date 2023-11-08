@@ -87,15 +87,15 @@ def get_machine_storage():
     total_size = round(total_size)
     free_size = round(free_size)
     if (total_size > 10):
-        phrase = '\033[1;32;40m expandido\033[0m'
+        phrase = '\033[1;32;40mOK\033[0m'
     else:
-        phrase = '\033[1;31;40m nao expandido\033[0m'
+        phrase = '\033[1;31;40mNOK\033[0m'
 
-    if (free_size < 0.1 * total_size):
-        phrase += ' e \033[1;31;40mcom excesso de arquivos \033[0m'
+    if (free_size < 0.05 * total_size):
+        phrase2 = '\033[1;31;40m NOK \033[0m'
     else:
-        phrase += ' e \033[1;32;40msem excesso de arquivos\033[0m'
-    return phrase
+        phrase2 = '\033[1;32;40m OK\033[0m'
+    return phrase, phrase2
 
 # clear_log_file(log_file_path): This function clears the contents of a log file specified by log_file_path.
 def clear_log_file(log_file_path):
@@ -122,16 +122,23 @@ def chk_gps2():
     gps_device_fd = "/dev/serial0"
     gps_device = os.open(gps_device_fd, os.O_RDWR)
     gps_data = ""
+    danger =3
+    phrase=''
     for i in range(1024):
-        #gps_data += os.read(gps_device, 2048)
-        gps_data += os.read(gps_device, 2048).decode('utf-8')
-    # print(gps_data)  
-    if "$GNGSA,A,3" in gps_data or "$GNGSA,A,2" in gps_data:    
-        #print("\033[1;32;40m GPS: OK \033[0;37;40m");
-        return "GPS:\033[1;32;40mOK \033[0m"
-    else:
-        #print("\033[1;31;40m GPS: ERROR \033[0;37;40m");
-        return "GPS:\033[1;31;40mERROR \033[0m"
+        gps_data += os.read(gps_device, 2048).decode('utf-8') 
+    if "$GNGSA,A,3" in gps_data or "$GNGSA,A,2" in gps_data:
+        danger="\033[1;32;40mOK\033[0m"
+        phrase= "COM INFO DE SATELITE"
+    elif "$GPRMC" in gps_data or "$GNRMC" in gps_data:
+        danger ="\033[1;33;40mOK\033[0m"
+        phrase= "SEM INFO DE SATELITE"
+    else:    
+        danger="\033[1;31;40mNOK\033[0m"
+        phrase= "ERROR"
+    return danger, phrase 
+            
+
+    
 
 # chk_camera(): This function checks if a process named "camera" is running. If the process is running, 
 # it returns "Camera On," otherwise "Camera OFF."
@@ -143,12 +150,12 @@ def chk_camera():
     else:
         return 'Camera:\033[1;31;40m OFF \033[0m'
 
-def check_camera_status():   
+def check_camera_status():
    try:
-      subprocess.run(["raspistill", "-o", "/tmp/camera_test.jpg", "-w", "640", "-h", "480"], check=True)
-      return"\033[1;32;40m CAMERA: OK \033"
+      subprocess.run(["raspistill", "-o", "/tmp/camera_test.jpg", "-w", "640", "-h", "480"], check=True,stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+      return"\033[1;32;40m CAMERA: OK \033[0m"
    except subprocess.CalledProcessError as e:
-      return"\033[1;31;40m CAMERA: ERROR ({e.returncode})\033"
+      return f"\033[1;31;40m CAMERA: ERROR ({e.returncode})\033[0m"
 
 """
 The main part of the script starts here.
@@ -164,18 +171,24 @@ It writes this information to the log file and sleeps for 3 seconds before repea
 def main():
     log_file_path = f'/tmp/{daemon_name}.log'
     clear_log_file(log_file_path)  # Apaga o conteúdo do arquivo de log ao iniciar
-    while True:
-        with open(f'/tmp/{daemon_name}.log', 'a') as file:
-            current_time = time.strftime('\033[1;36;40m%Y-%m-%d %H:%M:%S\033[0m')
-            size = get_machine_storage()
-            status_gps=chk_gps2()
-            status_camera=check_camera_status()
-            conncetion_chk = check_internet()
-            imu = imu_check()
-            read_sim= read_iccid()
-            file.write(f'{current_time} - Status conexao: {conncetion_chk} - Sd card: {size}  - {status_gps} - {status_camera} - IMU: {imu} - {read_sim}\n')
-            print('\033[1;32;40m Gerando log...\033[0m')
-        time.sleep(3)
+    #while True:
+    with open(f'/tmp/{daemon_name}.log', 'a') as file:
+        current_time = time.strftime('\033[1;36;40m%Y-%m-%d %H:%M:%S\033[0m')
+        c,d = get_machine_storage()
+        a,b=chk_gps2()
+        status_camera=check_camera_status()
+        conncetion_chk = check_internet()
+        imu = imu_check()
+        read_sim= read_iccid()
+        file.write(f'{current_time} \n'
+                    f'Analise conexao:\n\t- {conncetion_chk} \n'
+                    f'Analise Sd card:\n\t- Expanded:{c}\n\t- Free disk:{d} \n' 
+                    f'Analise gps:\n\t- Health gps:{a} \n\t- Descriptiom: {b} \n'
+                    f'Analise Camera:\n\t- {status_camera}\n'
+                    f'Analise IMU:\n\t- {imu}\n'
+                    f'Analise Sim card:\n\t- {read_sim}\n')
+    print('\033[1;32;40m Log gerado!\033[0m')
+        #time.sleep(3)
 
 
 if __name__ == '__main__':
