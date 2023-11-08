@@ -51,6 +51,15 @@ def capture_first_line(command):
             return ''
     except Exception as e:
         return f"Erro ao executar o comando: {str(e)}"
+    
+def read_iccid():
+    command_icc='sudo timeout 2 cat /dev/ttyUSB4 & sudo stty -F /dev/ttyUSB4 raw -echo & sudo echo -e "AT+CCID\r" > /dev/ttyUSB4'
+    result, error=run_bash_command(command_icc)
+    print(error)
+    if 'OK' in result:
+        return '\033[1;32;40mSim card inserted\033[0m'
+    else:
+        return '\033[1;31;40msim card not inserted\033[0m'
 
 
 # check_internet(): This function checks for internet connectivity by attempting to create a connection to 
@@ -116,7 +125,7 @@ def chk_gps2():
     for i in range(1024):
         #gps_data += os.read(gps_device, 2048)
         gps_data += os.read(gps_device, 2048).decode('utf-8')
-    print(gps_data)  
+    # print(gps_data)  
     if "$GNGSA,A,3" in gps_data or "$GNGSA,A,2" in gps_data:    
         #print("\033[1;32;40m GPS: OK \033[0;37;40m");
         return "GPS:\033[1;32;40mOK \033[0m"
@@ -133,6 +142,13 @@ def chk_camera():
         return 'Camera:\033[1;32;40m ON \033[0m'
     else:
         return 'Camera:\033[1;31;40m OFF \033[0m'
+
+def check_camera_status():   
+   try:
+      subprocess.run(["raspistill", "-o", "/tmp/camera_test.jpg", "-w", "640", "-h", "480"], check=True)
+      return"\033[1;32;40m CAMERA: OK \033"
+   except subprocess.CalledProcessError as e:
+      return"\033[1;31;40m CAMERA: ERROR ({e.returncode})\033"
 
 """
 The main part of the script starts here.
@@ -153,10 +169,11 @@ def main():
             current_time = time.strftime('\033[1;36;40m%Y-%m-%d %H:%M:%S\033[0m')
             size = get_machine_storage()
             status_gps=chk_gps2()
-            status_camera=chk_camera()
+            status_camera=check_camera_status()
             conncetion_chk = check_internet()
             imu = imu_check()
-            file.write(f'{current_time} - Status conexao: {conncetion_chk} - Sd card: {size}  - {status_gps} - {status_camera} - IMU: {imu}\n')
+            read_sim= read_iccid()
+            file.write(f'{current_time} - Status conexao: {conncetion_chk} - Sd card: {size}  - {status_gps} - {status_camera} - IMU: {imu} - {read_sim}\n')
             print('\033[1;32;40m Gerando log...\033[0m')
         time.sleep(3)
 
