@@ -151,7 +151,7 @@ def chk_camera():
         return 'Camera:\033[1;31;40m OFF \033[0m'
     
 def chk_dial_modem():
-    modem_command = 'pgrep wvdial'
+    modem_command = 'ip addr | grep -ia ppp0'
     result, error=run_bash_command(modem_command)
     if(result != ''):
         return '\033[1;32;40m ON \033[0m'
@@ -164,6 +164,17 @@ def check_camera_status():
       return"\033[1;32;40m OK\033[0m"
    except subprocess.CalledProcessError as e:
       return f"\033[1;31;40m ERROR({e.returncode})\033[0m"
+   
+def count_lines():
+    command_dmesg = "dmesg | grep -ia modem"
+    result, error = run_bash_command(command_dmesg)
+    lines = result.splitlines()
+    count= len(lines)
+    if(count >18):
+        phrase="\033[1;31;40m unstable \033[0m"
+    else:
+        phrase="\033[1;32;40m stable \033[0m"    
+    return phrase
 
 """
 The main part of the script starts here.
@@ -178,9 +189,9 @@ It writes this information to the log file and sleeps for 3 seconds before repea
 """
 def main():
     log_file_path = f'/tmp/{daemon_name}.log'
-    clear_log_file(log_file_path)  # Apaga o conteúdo do arquivo de log ao iniciar
+    #clear_log_file(log_file_path)  # Apaga o conteúdo do arquivo de log ao iniciar
     #while True:
-    with open(f'/tmp/{daemon_name}.log', 'a') as file:
+    with open(log_file_path, 'a') as file:
         current_time = time.strftime('\033[1;36;40m%Y-%m-%d %H:%M:%S\033[0m')
         c,d = get_machine_storage()
         a,b=chk_gps2()
@@ -189,8 +200,9 @@ def main():
         modem_status = chk_dial_modem()
         imu = imu_check()
         read_sim= read_iccid()
-        file.write(f'{current_time} \n'
-                    f'Analise conexao:\n\t- connection internet: {conncetion_chk}\n\t- Modem Process:{modem_status} \n'
+        counting=count_lines()
+        file.write(f'\n\033[1;34;40m---Driver_analytics Health---\033[0m\nDate:\n\t- {current_time} \n'
+                    f'Analise conexao:\n\t- connection internet: {conncetion_chk}\n\t- Modem Process:{modem_status}\n\t- Stability: {counting}  \n'
                     f'Analise Sd card:\n\t- Expanded:{c}\n\t- Free disk:{d} \n' 
                     f'Analise gps:\n\t- Health gps:{a} \n\t- Descriptiom: {b} \n'
                     f'Analise Camera:\n\t- Camera: {status_camera}\n'
