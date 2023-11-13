@@ -3,6 +3,7 @@ import socket
 #import psutil
 import os
 import subprocess
+import serial
 
 #from daemonize import Daemonize
 daemon_name = 'chk_status'
@@ -142,13 +143,13 @@ def chk_gps2():
 
 # chk_camera(): This function checks if a process named "camera" is running. If the process is running, 
 # it returns "Camera On," otherwise "Camera OFF."
-def chk_camera():
-    camera_command = 'pgrep camera'
-    result, error=run_bash_command(camera_command)
-    if(result != ''):
-        return 'Camera:\033[1;32;40m ON \033[0m'
-    else:
-        return 'Camera:\033[1;31;40m OFF \033[0m'
+# def chk_camera():
+#     camera_command = 'pgrep camera'
+#     result, error=run_bash_command(camera_command)
+#     if(result != ''):
+#         return 'Camera:\033[1;32;40m ON \033[0m'
+#     else:
+#         return 'Camera:\033[1;31;40m OFF \033[0m'
     
 def chk_dial_modem():
     modem_command = 'ip addr | grep -ia ppp0'
@@ -158,23 +159,90 @@ def chk_dial_modem():
     else:
         return '\033[1;31;40m OFF \033[0m'
 
+
+def send_serial_command(command):
+    try:
+        ser = serial.Serial("/dev/ttyUSB4", 115200, timeout=5)
+        
+        # Send the provided command
+        ser.write(command)
+
+        # Read lines with a timeout
+        start_time = time.time()
+        response = ""
+
+        while time.time() - start_time <= 10:  # 10 seconds timeout (adjust as needed)
+            bs = ser.readline()
+            response += bs.decode()
+
+            if "Error" in response:
+                return "Error"
+            elif "OK" in response:
+                return response
+
+        print("Timeout reached. Exiting.")
+        return "Timeout"
+    except serial.SerialException as e:
+        print(f"Error: {e}")
+        return "Serial Exception"
+    finally:
+        # Always close the serial connection
+        if ser.isOpen():
+            ser.close()
+
+def modem_signal():
+    text_signal =b'AT+CSQ\r'
+    result= send_serial_command(text_signal)
+    result2= result.split("\n")[1].split(":")[1].strip()	    
+    if len(result2)>0:
+        signal_strength=float(result2.replace(',','.'))
+        if(signal_strength>20):
+            return "\033[1;32;40m Strong signal \033[0m"
+        elif(signal_strength<=20 & signal_strength>15):
+            return "\033[1;33;40m Mediun signal \033[0m"
+        else:
+            return "\033[1;31;40m Low signal \033[0m"
+    else:
+        return 0
+
+def modem_status():
+    text_status =b'AT+CPAS\r'
+    result = send_serial_command(text_status)
+    result2 = result.split(":")[1].strip()
+    if "ok" in result2.lower():
+        return "\033[1;32;40mOK\033[0m"
+    elif "error" in result2.lower():
+        "\033[1;31;40mERROR\033[0m"
+    else:
+        "Undefined"
+    
+    #jeito alternativo
+    # command_status='sudo timeout 2 cat /dev/ttyUSB4 & sudo stty -F /dev/ttyUSB4 raw -echo & sudo echo -e "AT+CPAS\r" > /dev/ttyUSB4'
+    # result,error = run_bash_command(command_status)
+    # if 'ERROR' in result:
+    #     return '\033[1;31;40m Error\033[0m'
+    # else:
+    #     return '\033[1;32;40m Ok \033[0m'
+
+#checa se é possivel tirar um frame com a camera para testar se ela esta funcionando
 def check_camera_status():
    try:
       subprocess.run(["raspistill", "-o", "/tmp/camera_test.jpg", "-w", "640", "-h", "480"], check=True,stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
       return"\033[1;32;40m OK\033[0m"
    except subprocess.CalledProcessError as e:
       return f"\033[1;31;40m ERROR({e.returncode})\033[0m"
-   
-def count_lines():
-    command_dmesg = "dmesg | grep -ia modem"
-    result, error = run_bash_command(command_dmesg)
-    lines = result.splitlines()
-    count= len(lines)
-    if(count >18):
-        phrase="\033[1;31;40m unstable \033[0m"
-    else:
-        phrase="\033[1;32;40m stable \033[0m"    
-    return phrase
+
+#ideia de contar quanta vezes o equipamento se desconectou da internet   
+# def count_lines():
+#     command_dmesg = "dmesg | grep -ia modem"
+#     result, error = run_bash_command(command_dmesg)
+#     lines = result.splitlines()
+#     count= len(lines)
+#     if(count >27):
+#         phrase="\033[1;31;40m unstable \033[0m"
+#     else:
+#         phrase="\033[1;32;40m stable \033[0m"    
+#     return phrase
 
 """
 The main part of the script starts here.
@@ -197,18 +265,20 @@ def main():
         a,b=chk_gps2()
         status_camera=check_camera_status()
         conncetion_chk = check_internet()
-        modem_status = chk_dial_modem()
+        Process_modem = chk_dial_modem()
         imu = imu_check()
         read_sim= read_iccid()
-        counting=count_lines()
+        signal=modem_signal()
+        status=modem_status()
         file.write(f'\n\033[1;34;40m---Driver_analytics Health---\033[0m\nDate:\n\t- {current_time} \n'
-                    f'Analise conexao:\n\t- connection internet: {conncetion_chk}\n\t- Modem Process:{modem_status}\n\t- Stability: {counting}  \n'
+                    f'Analise conexao:\n\t- connection internet: {conncetion_chk}\n\t- Modem IP:{Process_modem}\n\t- Signal: {signal} \n\t- Status: {status} \n'
                     f'Analise Sd card:\n\t- Expanded:{c}\n\t- Free disk:{d} \n' 
                     f'Analise gps:\n\t- Health gps:{a} \n\t- Descriptiom: {b} \n'
                     f'Analise Camera:\n\t- Camera: {status_camera}\n'
                     f'Analise IMU:\n\t- Active: {imu}\n'
                     f'Analise Sim card:\n\t- {read_sim}\n')
-    print('\033[1;32;40m Log gerado!\033[0m')
+    print('\033[1;32;40m Log gerado!\033[0m') 
+    
         #time.sleep(3)
 
 
