@@ -137,7 +137,78 @@ def chk_gps2():
         danger="\033[1;31;40mNOK\033[0m"
         phrase= "\033[1;31;40mERROR\033[0m"
     return danger, phrase 
-            
+
+def chk_gps3():
+    gps_device_fd = "/dev/serial0"
+    gps_device = os.open(gps_device_fd, os.O_RDWR)
+    gps_data = ""
+    for _ in range(1024):
+        gps_data += os.read(gps_device, 2048).decode('utf-8')
+    validity_status = None
+    num_satellites = None
+    signal_strength = None
+    
+    nmea_sentences = gps_data.split('\n') # Split the GPS data into individual NMEA sentences
+    gsa_counter = 0
+    avg_signal_strength = 0
+    avg_num_satellites = 0
+    countA = 0
+    countV = 0
+    avg_fix = 0
+    for sentence in nmea_sentences:
+        if sentence[3:6] == 'GSA':
+            # Parse the GNGSA sentence for fix mode, number of satellites, and signal strength
+            parts = sentence.split(',')
+            avg_fix += int(parts[2])
+            num_satellites = len([s for s in parts[3:15] if s])
+            if len(sentence) >= 16: 
+                signal_strength = parts[16]
+                if signal_strength:
+                    avg_signal_strength += float(signal_strength)
+                    avg_num_satellites += float(num_satellites)
+            gsa_counter +=1
+        elif sentence[3:6] == 'RMC':
+            # Parse the GPRMC sentence for validity status
+            parts = sentence.split(',')
+            validity_status = parts[2]
+            if parts[2] == 'A':
+                countA += 1 
+            else:
+                countV += 1
+    
+    # Determine the result based on parsed information
+    validity_status = 'A' if countA > 1.75 * countV else 'V'
+    avg_signal_strength /= gsa_counter
+    avg_num_satellites /= gsa_counter
+    avg_fix /= gsa_counter
+    fix = 0
+    sat_num = 0
+    sig_str = 0
+
+    if avg_fix > 2 and validity_status == 'A':
+        fix = "\033[1;32;40m3D\033[0m"
+    elif avg_fix <= 2 and validity_status == 'A':
+        fix = "\033[1;33;40m2D\033[0m"
+    else:
+        fix = "\033[1;31;40mNo Fix\033[0m"
+
+    if signal_strength is not None:
+        if avg_signal_strength > 0.5:
+            sig_str = f"\033[1;32;40m{avg_signal_strength:.2f}\033[0m"
+        elif avg_signal_strength > 0.5:
+            sig_str = f"\033[1;33;40m{avg_signal_strength:.2f}\033[0m"
+        else:
+            sig_str = f"\033[1;31;40m{avg_signal_strength:.2f}\033[0m"
+
+    if num_satellites is not None:
+        if avg_num_satellites > 0.5:
+            sat_num = f"\033[1;32;40m{avg_num_satellites:.0f}\033[0m"
+        elif avg_num_satellites > 0.2:
+            sat_num = f"\033[1;33;40m{avg_num_satellites:.0f}\033[0m"
+        else:
+            sat_num = f"\033[1;31;40m{avg_num_satellites:.0f}\033[0m"
+    
+    return fix, sig_str, sat_num
     
 def chk_dial_modem():
     modem_command = 'ip addr | grep -ia ppp0'
@@ -146,7 +217,6 @@ def chk_dial_modem():
         return '\033[1;32;40m ON \033[0m'
     else:
         return '\033[1;31;40m OFF \033[0m'
-
 
 def send_serial_command(command):
     try:
@@ -240,7 +310,8 @@ def main():
     with open(log_file_path, 'a') as file:
         current_time = time.strftime('\033[1;36;40m%Y-%m-%d %H:%M:%S\033[0m')
         c,d = get_machine_storage()
-        a,b=chk_gps2()
+        # a,b=chk_gps2()
+        fix, sig_str, sat_num = chk_gps3()
         status_camera=check_camera_status()
         conncetion_chk = check_internet()
         Process_modem = chk_dial_modem()
@@ -251,7 +322,7 @@ def main():
         file.write(f'\n\033[1;34;40m---Driver_analytics Health---\033[0m\nDate:\n\t- {current_time} \n'
                     f'Analise conexao:\n\t- connection internet: {conncetion_chk}\n\t- Modem IP:{Process_modem}\n\t- Signal: {signal} \n\t- Status: {status} \n'
                     f'Analise Sd card:\n\t- Expanded:{c}\n\t- Free disk:{d} \n' 
-                    f'Analise gps:\n\t- Health gps:{a} \n\t- Descriptiom: {b} \n'
+                    f'Analise gps:\n\t- GPS Fix:{fix}\n\t- Signal Strength:{sig_str}  \n\t- Avaible Satellites: {sat_num} \n'
                     f'Analise Camera:\n\t- Camera: {status_camera}\n'
                     f'Analise IMU:\n\t- Active: {imu}\n'
                     f'Analise Sim card:\n\t- {read_sim}\n')
