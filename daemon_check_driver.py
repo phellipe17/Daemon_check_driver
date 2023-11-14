@@ -138,18 +138,6 @@ def chk_gps2():
         phrase= "\033[1;31;40mERROR\033[0m"
     return danger, phrase 
             
-
-    
-
-# chk_camera(): This function checks if a process named "camera" is running. If the process is running, 
-# it returns "Camera On," otherwise "Camera OFF."
-# def chk_camera():
-#     camera_command = 'pgrep camera'
-#     result, error=run_bash_command(camera_command)
-#     if(result != ''):
-#         return 'Camera:\033[1;32;40m ON \033[0m'
-#     else:
-#         return 'Camera:\033[1;31;40m OFF \033[0m'
     
 def chk_dial_modem():
     modem_command = 'ip addr | grep -ia ppp0'
@@ -168,10 +156,10 @@ def send_serial_command(command):
         ser.write(command)
 
         # Read lines with a timeout
-        start_time = time.time()
+        counter = 0
         response = ""
 
-        while time.time() - start_time <= 10:  # 10 seconds timeout (adjust as needed)
+        while counter < 10:  # 10 seconds timeout (adjust as needed)
             bs = ser.readline()
             response += bs.decode()
 
@@ -179,6 +167,8 @@ def send_serial_command(command):
                 return "Error"
             elif "OK" in response:
                 return response
+            
+            counter +=1
 
         print("Timeout reached. Exiting.")
         return "Timeout"
@@ -231,18 +221,6 @@ def check_camera_status():
       return"\033[1;32;40m OK\033[0m"
    except subprocess.CalledProcessError as e:
       return f"\033[1;31;40m ERROR({e.returncode})\033[0m"
-
-#ideia de contar quanta vezes o equipamento se desconectou da internet   
-# def count_lines():
-#     command_dmesg = "dmesg | grep -ia modem"
-#     result, error = run_bash_command(command_dmesg)
-#     lines = result.splitlines()
-#     count= len(lines)
-#     if(count >27):
-#         phrase="\033[1;31;40m unstable \033[0m"
-#     else:
-#         phrase="\033[1;32;40m stable \033[0m"    
-#     return phrase
 
 """
 The main part of the script starts here.
