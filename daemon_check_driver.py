@@ -292,6 +292,25 @@ def check_camera_status():
    except subprocess.CalledProcessError as e:
       return f"\033[1;31;40m ERROR({e.returncode})\033[0m"
 
+def swap_memory():
+    command = "free -h | grep -iA 1 swap | tail -n 1 | awk '{printf \"Swap usage: %.2f%%\\n\", ($3/$2)*100}'"
+    output, error = run_bash_command(command)
+    
+    if error:
+        return f"\033[1;31;40m Error: {error} \033[0m"
+    else:
+        return f"\033[1;32;40m {output}\033[0m"
+    
+
+# def Usage_cpu():
+#     command = "top -b -n 1 | awk '/%Cpu/ {print 100 - $8"%"}'"
+#     output, error = run_bash_command(command)
+#     print(output)
+#     if error:
+#         return f"\033[1;31;40m Error: {error}\033[0m"
+#     else:
+#         return f"\033[1;32;40m {output}\033[0m"
+
 """
 The main part of the script starts here.
 It sets the log_file_path to a temporary directory and clears the log file's contents at the beginning.
@@ -319,13 +338,16 @@ def main():
         read_sim= read_iccid()
         signal=modem_signal()
         status=modem_status()
+        swapa = swap_memory()
+        cpu = "Fazendo"
         file.write(f'\n\033[1;34;40m---Driver_analytics Health---\033[0m\nDate:\n\t- {current_time} \n'
                     f'Analise conexao:\n\t- connection internet: {conncetion_chk}\n\t- Modem IP:{Process_modem}\n\t- Signal: {signal} \n\t- Status: {status} \n'
                     f'Analise Sd card:\n\t- Expanded:{c}\n\t- Free disk:{d} \n' 
                     f'Analise gps:\n\t- GPS Fix:{fix}\n\t- Signal Strength:{sig_str}  \n\t- Avaible Satellites: {sat_num} \n'
                     f'Analise Camera:\n\t- Camera: {status_camera}\n'
                     f'Analise IMU:\n\t- Active: {imu}\n'
-                    f'Analise Sim card:\n\t- {read_sim}\n')
+                    f'Analise Sim card:\n\t- {read_sim}\n'
+                    f'Analise Sistema:\n\t- {swapa} \n\t- CPU Usage: {cpu}\n')
     print('\033[1;32;40m Log gerado!\033[0m') 
     
         #time.sleep(3)
