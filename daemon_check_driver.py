@@ -8,6 +8,14 @@ import serial
 #from daemonize import Daemonize
 daemon_name = 'chk_status'
 
+def color(msg, collor):
+    if collor == "green":
+        return f'\033[1;32;40m{msg}\033[0m'
+    elif collor == "red":
+        return f'\033[1;31;40m{msg}\033[0m'
+    elif collor == "yellow":
+        return f'\033[1;33;40m{msg}\033[0m'
+
 
 # This function runs a shell command specified as command and returns its standard output and standard error as strings.
 def run_bash_command(command):
@@ -20,9 +28,10 @@ def imu_check():
     command2 = 'i2cdetect -y 1 | grep -ia 68'
     result, error=run_bash_command(command2)
     if (result != ''):
-        return '\033[1;32;40m ON \033[0m'
+        return color(' ON ', 'green')
     else:
-        return '\033[1;31;40m Off \033[0m'
+        return color(' OFF ', 'red')
+    # print(result)
     # print(result)
     # ---- Opcao 2 -----
     # bus_number = 1
@@ -53,14 +62,14 @@ def capture_first_line(command):
     except Exception as e:
         return f"Erro ao executar o comando: {str(e)}"
     
-def read_iccid():
-    command_icc='sudo timeout 2 cat /dev/ttyUSB4 & sudo stty -F /dev/ttyUSB4 raw -echo & sudo echo -e "AT+CCID\r" > /dev/ttyUSB4'
-    result, error=run_bash_command(command_icc)
-    print(error)
-    if 'OK' in result:
-        return '\033[1;32;40mSim inserted\033[0m'
-    else:
-        return '\033[1;31;40mSim not inserted\033[0m'
+# def read_iccid():
+#     command_icc='sudo timeout 2 cat /dev/ttyUSB4 & sudo stty -F /dev/ttyUSB4 raw -echo & sudo echo -e "AT+CCID\r" > /dev/ttyUSB4'
+#     result, error=run_bash_command(command_icc)
+#     print(error)
+#     if 'OK' in result:
+#         return '\033[1;32;40mSim inserted\033[0m'
+#     else:
+#         return '\033[1;31;40mSim not inserted\033[0m'
         
 
 
@@ -70,9 +79,9 @@ def check_internet():
     try:
         # Tente fazer uma conexão com um servidor remoto (por exemplo, o Google)
         socket.create_connection(("www.google.com", 80))
-        return '\033[1;32;40m Ok \033[0m'
+        return color(' OK ', 'green')
     except OSError:
-        return '\033[1;31;40m NOK \033[0m'
+        return color(' NOK ', 'red')
 
 # get_machine_storage(): This function calculates and returns the total and free storage space on the root filesystem. 
 # If the total storage is less than 10 GB, it attempts to expand the root filesystem and requests a reboot.
@@ -89,15 +98,15 @@ def get_machine_storage():
     total_size = round(total_size)
     free_size = round(free_size)
     if (total_size > 10):
-        phrase = '\033[1;32;40mOK\033[0m'
+        size_ok = color(' OK ', 'green')
     else:
-        phrase = '\033[1;31;40mNOK\033[0m'
+        size_ok = color(' NOK ', 'red')
 
     if (free_size < 0.05 * total_size):
-        phrase2 = '\033[1;31;40m NOK \033[0m'
+        free_size_ok = color(' OK ', 'green')
     else:
-        phrase2 = '\033[1;32;40m OK\033[0m'
-    return phrase, phrase2
+        free_size_ok = color(' NOK ', 'red')
+    return size_ok, free_size_ok
 
 # clear_log_file(log_file_path): This function clears the contents of a log file specified by log_file_path.
 def clear_log_file(log_file_path):
@@ -115,7 +124,7 @@ def chk_gps():
     linha1 = linha1[:10]
     #print(f' info gps: {linha1}')
     if (linha1 == '$GNGSA,A,3' or linha1 == '$GNGSA,A,2'):
-        return 'GPS\033[1;32;40m ON \033[0m'
+        return f"GPS {color(' OK ', 'green')}"
     else:
         return ' GPS\033[1;31;40m OFF \033[0m'
     
@@ -129,14 +138,14 @@ def chk_gps2():
     for i in range(1024):
         gps_data += os.read(gps_device, 2048).decode('utf-8') 
     if "$GNGSA,A,3" in gps_data or "$GNGSA,A,2" in gps_data:
-        danger="\033[1;32;40mOK\033[0m"
-        phrase= "\033[1;32;40mINFO SATELLITE\033[0m"
+        danger = color(' OK ', 'green')
+        phrase = color(' INFO SATELLITE ', 'green')
     elif "$GPRMC" in gps_data or "$GNRMC" in gps_data:
-        danger ="\033[1;33;40mOK\033[0m"
-        phrase= "\033[1;33;40mNOINFO SATELLITE\033[0m"
+        danger = color(' OK ', 'yellow')
+        phrase = color(' INFO SATELLITE ', 'yellow')
     else:    
-        danger="\033[1;31;40mNOK\033[0m"
-        phrase= "\033[1;31;40mERROR\033[0m"
+        danger = color(' NOK ', 'red')
+        phrase = color(' ERROR ', 'red')
     return danger, phrase 
 
 def chk_gps3():
@@ -187,27 +196,27 @@ def chk_gps3():
     sig_str = 0
 
     if avg_fix > 2 and validity_status == 'A':
-        fix = "\033[1;32;40m3D\033[0m"
+        fix = color(' 3D ', 'green')
     elif avg_fix <= 2 and validity_status == 'A':
-        fix = "\033[1;33;40m2D\033[0m"
+        fix = color(' 2D ', 'yellow')
     else:
-        fix = "\033[1;31;40mNo Fix\033[0m"
+        fix = color(' No Fix ', 'red')
 
     if signal_strength is not None:
         if avg_signal_strength > 0.5:
-            sig_str = f"\033[1;32;40m{avg_signal_strength:.2f}\033[0m"
+            sig_str = color(f"{avg_signal_strength:.2f}", 'green')
         elif avg_signal_strength > 0.5:
-            sig_str = f"\033[1;33;40m{avg_signal_strength:.2f}\033[0m"
+            sig_str = color(f"{avg_signal_strength:.2f}", 'yellow')
         else:
-            sig_str = f"\033[1;31;40m{avg_signal_strength:.2f}\033[0m"
+            sig_str = color(f"{avg_signal_strength:.2f}", 'red')
 
     if num_satellites is not None:
         if avg_num_satellites > 0.5:
-            sat_num = f"\033[1;32;40m{avg_num_satellites:.0f}\033[0m"
+            sat_num = color(f"{avg_num_satellites:.0f}", 'green')
         elif avg_num_satellites > 0.2:
-            sat_num = f"\033[1;33;40m{avg_num_satellites:.0f}\033[0m"
+            sat_num = color(f"{avg_num_satellites:.0f}", 'yellow')
         else:
-            sat_num = f"\033[1;31;40m{avg_num_satellites:.0f}\033[0m"
+            sat_num = color(f"{avg_num_satellites:.0f}", 'red')
     
     return fix, sig_str, sat_num
     
@@ -215,25 +224,25 @@ def chk_dial_modem():
     modem_command = 'ip addr | grep -ia ppp0'
     result, error=run_bash_command(modem_command)
     if(result != ''):
-        return '\033[1;32;40m ON \033[0m'
+        return color(' ON ', 'green')
     else:
-        return '\033[1;31;40m OFF \033[0m'
+        return color(' OFF ', 'red')
 
 def chk_wlan_interface():
     wlan_command = 'ip addr show wlan0'
     result, error = run_bash_command(wlan_command)
     if 'UP' in result:
-        return '\033[1;32;40m ON \033[0m'
+        return color(' ON ', 'green')
     else:
-        return '\033[1;31;40m OFF \033[0m'
+        return color(' OFF ', 'red')
 
 def chk_ethernet_interface():
     eth_command = 'ip addr show eth0'
     result, error = run_bash_command(eth_command)
     if 'UP' in result:
-        return '\033[1;32;40m ON \033[0m'
+        return color(' ON ', 'green')
     else:
-        return '\033[1;31;40m OFF \033[0m'
+        return color(' OFF ', 'red')
 
 def send_serial_command(command):
     try:
@@ -274,11 +283,11 @@ def modem_signal():
     if len(result2)>0:
         signal_strength=float(result2.replace(',','.'))
         if(signal_strength>20):
-            return "\033[1;32;40m Strong signal \033[0m"
+            return color(' Strong signal ', 'green')
         elif(signal_strength<=20 & signal_strength>15):
-            return "\033[1;33;40m Mediun signal \033[0m"
+            return color(' Mediun signal ', 'yellow')
         else:
-            return "\033[1;31;40m Low signal \033[0m"
+            return color(' Low signal ', 'red')
     else:
         return 0
 
@@ -287,12 +296,12 @@ def modem_status():
     result = send_serial_command(text_status)
     result2 = result.split(":")[1].strip()
     if "ok" in result2.lower():
-        return "\033[1;32;40mOK\033[0m"
+        return color(' ON ', 'green')
     elif "error" in result2.lower():
-        "\033[1;31;40mERROR\033[0m"
+        return color(' ERROR ', 'red')
     else:
-        "Undefined"
-    
+        return "Undefined"
+        
     #jeito alternativo
     # command_status='sudo timeout 2 cat /dev/ttyUSB4 & sudo stty -F /dev/ttyUSB4 raw -echo & sudo echo -e "AT+CPAS\r" > /dev/ttyUSB4'
     # result,error = run_bash_command(command_status)
@@ -301,22 +310,31 @@ def modem_status():
     # else:
     #     return '\033[1;32;40m Ok \033[0m'
 
+def get_ccid():
+    command = b'AT+QCCID\r'
+    result = send_serial_command(command)
+    ccid = result.split("\n")[1].split(" ")[1]
+    if 'OK' in result and ccid:
+        return color(f' Sim inserted - CCID: {ccid} ', 'green')
+    else:
+        return color(' Sim not inserted ', 'red')
+
 #checa se é possivel tirar um frame com a camera para testar se ela esta funcionando
 def check_camera_status():
    try:
       subprocess.run(["raspistill", "-o", "/tmp/camera_test.jpg", "-w", "640", "-h", "480"], check=True,stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-      return"\033[1;32;40m OK\033[0m"
+      return color(' OK ', 'green')
    except subprocess.CalledProcessError as e:
-      return f"\033[1;31;40m ERROR({e.returncode})\033[0m"
+      return color(f' ERROR({e.returncode} ', 'red')
 
 def swap_memory():
     command = "free -h | grep -iA 1 swap | tail -n 1 | awk '{printf \"%.2f%%\", ($3/$2)*100}'"
     output, error = run_bash_command(command)
     
     if error:
-        return f"\033[1;31;40m Error: {error} \033[0m"
+        return color(f' ERROR: {error} ', 'red')
     else:
-        return f"\033[1;32;40m {output}\033[0m"
+        return color(f' {output} ', 'green')
     
 
 # def Usage_cpu():
@@ -352,7 +370,7 @@ def main():
         conncetion_chk = check_internet()
         Process_modem = chk_dial_modem()
         imu = imu_check()
-        read_sim= read_iccid()
+        read_sim= get_ccid()
         signal=modem_signal()
         status=modem_status()
         swapa = swap_memory()
