@@ -61,6 +61,7 @@ def read_iccid():
         return '\033[1;32;40mSim inserted\033[0m'
     else:
         return '\033[1;31;40mSim not inserted\033[0m'
+        
 
 
 # check_internet(): This function checks for internet connectivity by attempting to create a connection to 
@@ -218,6 +219,22 @@ def chk_dial_modem():
     else:
         return '\033[1;31;40m OFF \033[0m'
 
+def chk_wlan_interface():
+    wlan_command = 'ip addr show wlan0'
+    result, error = run_bash_command(wlan_command)
+    if 'UP' in result:
+        return '\033[1;32;40m ON \033[0m'
+    else:
+        return '\033[1;31;40m OFF \033[0m'
+
+def chk_ethernet_interface():
+    eth_command = 'ip addr show eth0'
+    result, error = run_bash_command(eth_command)
+    if 'UP' in result:
+        return '\033[1;32;40m ON \033[0m'
+    else:
+        return '\033[1;31;40m OFF \033[0m'
+
 def send_serial_command(command):
     try:
         ser = serial.Serial("/dev/ttyUSB4", 115200, timeout=5)
@@ -293,7 +310,7 @@ def check_camera_status():
       return f"\033[1;31;40m ERROR({e.returncode})\033[0m"
 
 def swap_memory():
-    command = "free -h | grep -iA 1 swap | tail -n 1 | awk '{printf \"Swap usage: %.2f%%\\n\", ($3/$2)*100}'"
+    command = "free -h | grep -iA 1 swap | tail -n 1 | awk '{printf \"%.2f%%\", ($3/$2)*100}'"
     output, error = run_bash_command(command)
     
     if error:
@@ -329,7 +346,7 @@ def main():
     with open(log_file_path, 'a') as file:
         current_time = time.strftime('\033[1;36;40m%Y-%m-%d %H:%M:%S\033[0m')
         c,d = get_machine_storage()
-        # a,b=chk_gps2()
+        #a,b=chk_gps2()
         fix, sig_str, sat_num = chk_gps3()
         status_camera=check_camera_status()
         conncetion_chk = check_internet()
@@ -340,6 +357,8 @@ def main():
         status=modem_status()
         swapa = swap_memory()
         cpu = "Fazendo"
+        interface_e= chk_ethernet_interface()
+        interface_wlan= chk_wlan_interface()
         file.write(f'\n\033[1;34;40m---Driver_analytics Health---\033[0m\nDate:\n\t- {current_time} \n'
                     f'Analise conexao:\n\t- connection internet: {conncetion_chk}\n\t- Modem IP:{Process_modem}\n\t- Signal: {signal} \n\t- Status: {status} \n'
                     f'Analise Sd card:\n\t- Expanded:{c}\n\t- Free disk:{d} \n' 
@@ -347,9 +366,8 @@ def main():
                     f'Analise Camera:\n\t- Camera: {status_camera}\n'
                     f'Analise IMU:\n\t- Active: {imu}\n'
                     f'Analise Sim card:\n\t- {read_sim}\n'
-                    f'Analise Sistema:\n\t- {swapa} \n\t- CPU Usage: {cpu}\n')
+                    f'Analise Sistema:\n\t- Swap usage: {swapa} \n\t- CPU Usage: {cpu} \n\t- ETH0 Interface: {interface_e} \n\t- WLAN Interface: {interface_wlan}\n')
     print('\033[1;32;40m Log gerado!\033[0m') 
-    
         #time.sleep(3)
 
 
