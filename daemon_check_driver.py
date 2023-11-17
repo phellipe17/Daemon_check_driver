@@ -16,7 +16,6 @@ def color(msg, collor):
     elif collor == "yellow":
         return f'\033[1;33;40m{msg}\033[0m'
 
-
 # This function runs a shell command specified as command and returns its standard output and standard error as strings.
 def run_bash_command(command):
     process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -31,8 +30,7 @@ def imu_check():
         return color(' ON ', 'green')
     else:
         return color(' OFF ', 'red')
-    # print(result)
-    # print(result)
+
     # ---- Opcao 2 -----
     # bus_number = 1
     # command = f"i2cdetect -y {bus_number}"
@@ -48,19 +46,19 @@ def imu_check():
 
 # capture_first_line(command): This function executes a shell command and captures its first line of output. 
 # It is designed to terminate the process after reading the first line.
-def capture_first_line(command):
-    first_line=''
-    try:
-        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, shell=True)
-        lines= process.stdout.readlines()
-        process.terminate()  # Encerra o processo após ler a primeira linha
-        if lines:
-            first_line= lines[0].strip()
-            return first_line
-        else:
-            return ''
-    except Exception as e:
-        return f"Erro ao executar o comando: {str(e)}"
+# def capture_first_line(command):
+#     first_line=''
+#     try:
+#         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, shell=True)
+#         lines= process.stdout.readlines()
+#         process.terminate()  # Encerra o processo após ler a primeira linha
+#         if lines:
+#             first_line= lines[0].strip()
+#             return first_line
+#         else:
+#             return ''
+#     except Exception as e:
+#         return f"Erro ao executar o comando: {str(e)}"
     
 # def read_iccid():
 #     command_icc='sudo timeout 2 cat /dev/ttyUSB4 & sudo stty -F /dev/ttyUSB4 raw -echo & sudo echo -e "AT+CCID\r" > /dev/ttyUSB4'
@@ -103,9 +101,9 @@ def get_machine_storage():
         size_ok = color(' NOK ', 'red')
 
     if (free_size < 0.05 * total_size):
-        free_size_ok = color(' OK ', 'green')
-    else:
         free_size_ok = color(' NOK ', 'red')
+    else:
+        free_size_ok = color(' OK ', 'green')
     return size_ok, free_size_ok
 
 # clear_log_file(log_file_path): This function clears the contents of a log file specified by log_file_path.
@@ -148,6 +146,7 @@ def chk_gps2():
         phrase = color(' ERROR ', 'red')
     return danger, phrase 
 
+
 def chk_gps3():
     gps_device_fd = "/dev/serial0"
     gps_device = os.open(gps_device_fd, os.O_RDWR)
@@ -171,7 +170,7 @@ def chk_gps3():
             parts = sentence.split(',')
             avg_fix += int(parts[2])
             num_satellites = len([s for s in parts[3:15] if s])
-            if len(sentence) >= 16: 
+            if len(parts) >= 16:
                 signal_strength = parts[16]
                 if signal_strength:
                     avg_signal_strength += float(signal_strength)
@@ -227,6 +226,7 @@ def chk_dial_modem():
         return color(' ON ', 'green')
     else:
         return color(' OFF ', 'red')
+
 
 def chk_wlan_interface():
     wlan_command = 'ip addr show wlan0'
