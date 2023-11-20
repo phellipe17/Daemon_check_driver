@@ -232,9 +232,26 @@ def chk_ethernet_interface():
     else:
         return color(' OFF ','red')
 
+def chk_ttyLTE():
+    command = 'ls /dev/'
+    result,error = run_bash_command(command)
+    if 'ttyLTE' in result:
+        return color('Mounted','green')
+    else:
+        return color('Unmouted','red')
+
+def chk_ttyARD():
+    command = 'ls /dev/'
+    result,error = run_bash_command(command)
+    if 'ttyARD' in result:
+        return color('Mounted','green')
+    else:
+        return color('Unmouted','red')
+
+
 def send_serial_command(command):
     try:
-        ser = serial.Serial("/dev/ttyUSB4", 115200, timeout=5)
+        ser = serial.Serial("/dev/ttyUSB4", 115200)
         
         # Send the provided command
         ser.write(command)
@@ -355,17 +372,20 @@ def main():
         signal=modem_signal()
         status=modem_status()
         swapa = swap_memory()
-        cpu = "Fazendo"
+        cpu = "Working"
         interface_e= chk_ethernet_interface()
         interface_wlan= chk_wlan_interface()
+        Lte=chk_ttyLTE()
+        Ard=chk_ttyARD()
         file.write(f'\n\033[1;34;40m---Driver_analytics Health---\033[0m\nDate:\n\t- {current_time} \n'
-                    f'Analise conexao:\n\t- connection internet: {conncetion_chk}\n\t- Modem IP:{Process_modem}\n\t- Signal: {signal} \n\t- Status: {status} \n'
-                    f'Analise Sd card:\n\t- Expanded:{c}\n\t- Free disk:{d} \n' 
-                    f'Analise gps:\n\t- GPS Fix:{fix}\n\t- Signal Strength:{sig_str}  \n\t- Avaible Satellites: {sat_num} \n'
-                    f'Analise Camera:\n\t- Camera: {status_camera}\n'
-                    f'Analise IMU:\n\t- Active: {imu}\n'
-                    f'Analise Sim card:\n\t- {read_sim}\n'
-                    f'Analise Sistema:\n\t- Swap usage: {swapa} \n\t- CPU Usage: {cpu} \n\t- ETH0 Interface: {interface_e} \n\t- WLAN Interface: {interface_wlan}\n')
+                    f'Connection Analysis:\n\t- connection internet: {conncetion_chk}\n\t- Modem IP:{Process_modem}\n\t- Signal: {signal} \n\t- Status: {status} \n'
+                    f'SD Card Analysis:\n\t- Expanded:{c}\n\t- Free disk:{d} \n' 
+                    f'GPS Analysis:\n\t- GPS Fix:{fix}\n\t- Signal Strength:{sig_str}  \n\t- Avaible Satellites: {sat_num} \n'
+                    f'Camera Analysis:\n\t- Camera: {status_camera}\n'
+                    f'IMU Analysis:\n\t- Active: {imu}\n'
+                    f'Sim Card Analysis:\n\t- {read_sim}\n'
+                    f'System Analysis:\n\t- Swap usage: {swapa} \n\t- CPU Usage: {cpu} \n\t- ETH0 Interface: {interface_e} \n\t- WLAN Interface: {interface_wlan}\n\t'
+                    f'-USB LTE: {Lte} \n\t- USB ARD: {Ard}')
     print('\033[1;32;40m Log gerado!\033[0m') 
         #time.sleep(3)
 
