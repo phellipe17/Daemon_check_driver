@@ -251,7 +251,7 @@ def chk_ttyARD():
 
 def send_serial_command(command):
     try:
-        ser = serial.Serial("/dev/ttyUSB4", 115200)
+        ser = serial.Serial("/dev/ttyUSB3", 115200)
         
         # Send the provided command
         ser.write(command)
