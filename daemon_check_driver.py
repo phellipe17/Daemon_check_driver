@@ -251,7 +251,7 @@ def chk_ttyARD():
 
 def send_serial_command(command):
     try:
-        ser = serial.Serial("/dev/ttyUSB3", 115200)
+        ser = serial.Serial("/dev/ttyMDN", 115200)
         
         # Send the provided command
         ser.write(command)
@@ -388,6 +388,7 @@ def main():
                     f'- USB LTE: {Lte} \n\t- USB ARD: {Ard}\n')
     print('\033[1;32;40m Log gerado!\033[0m') 
         #time.sleep(3)
+            
 
 
 if __name__ == '__main__':
