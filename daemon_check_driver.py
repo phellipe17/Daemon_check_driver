@@ -15,6 +15,8 @@ def color(msg, collor):
         return f'\033[1;31;40m{msg}\033[0m'
     elif collor == "yellow":
         return f'\033[1;33;40m{msg}\033[0m'
+    elif collor == "magenta":
+        return f'\033[1;35;40m{msg}\033[0m'
 
 # This function runs a shell command specified as command and returns its standard output and standard error as strings.
 def run_bash_command(command):
@@ -281,11 +283,13 @@ def modem_signal():
     result2= result.split("\n")[1].split(":")[1].strip()	    
     if len(result2)>0:
         signal_strength=float(result2.replace(',','.'))
-        if(signal_strength>20):
+        if(signal_strength==99):
+            return color('No signal','magenta')
+        elif(signal_strength>=31):
             return color(' Strong signal ','green')
-        elif(signal_strength<=20 & signal_strength>15):
-            return color(' Mediun signal ','yellow')
-        else:
+        elif(signal_strength<31 and signal_strength>=2):
+            return color(' Medium signal ','yellow')
+        elif(signal_strength<2 and  signal_strength>=0):
             return color(' Low signal ','red')
     else:
         return 0
@@ -307,26 +311,26 @@ def get_ccid():
     # print(result)
     ccid = result.split("\n")[1].split(" ")[1]
     if 'OK' in result and ccid:
-        return f'Sim\033[1;32;40m inserted - CCID: {ccid}\033[0m'
+        return color(f' Sim inserted - CCID: {ccid}', 'green')
     else:
-        return 'Sim\033[1;31;40m not inserted\033[0m'   
+        return color(' Sim not inserted', 'red')
 
 #checa se é possivel tirar um frame com a camera para testar se ela esta funcionando
 def check_camera_status():
    try:
       subprocess.run(["raspistill", "-o", "/tmp/camera_test.jpg", "-w", "640", "-h", "480"], check=True,stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-      return"\033[1;32;40m OK\033[0m"
+      return color(" OK ", "green")
    except subprocess.CalledProcessError as e:
-      return f"\033[1;31;40m ERROR({e.returncode})\033[0m"
+      return color(f" ERROR({e.returncode})", "red")
 
 def swap_memory():
     command = "free -h | grep -iA 1 swap | tail -n 1 | awk '{printf \"%.2f%%\", ($3/$2)*100}'"
     output, error = run_bash_command(command)
     
     if error:
-        return f"\033[1;31;40m Error: {error} \033[0m"
+        return color(f" Error: {error} ", "red")
     else:
-        return f"\033[1;32;40m {output}\033[0m"
+        return color(f" {output}", "green")
     
 
 # def Usage_cpu():
@@ -380,7 +384,7 @@ def main():
                     f'Sim Card Analysis:\n\t- {read_sim}\n'
                     f'System Analysis:\n\t- Swap usage: {swapa} \n\t- CPU Usage: {cpu} \n\t- ETH0 Interface: {interface_e} \n\t- WLAN Interface: {interface_wlan}\n\t'
                     f'- USB LTE: {Lte} \n\t- USB ARD: {Ard}\n')
-    print('\033[1;32;40m Log gerado!\033[0m') 
+    print(color(" Log gerado! ", "green")) 
         #time.sleep(3)
             
 
