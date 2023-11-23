@@ -138,7 +138,13 @@ def clear_log_file(log_file_path):
 #         phrase= "\033[1;31;40mERROR\033[0m"
 #     return danger, phrase 
 
-def chk_gps3(gps_data):
+def chk_gps3():
+    gps_device_fd = "/dev/serial0"
+    gps_device = os.open(gps_device_fd, os.O_RDWR)
+    gps_data = ""
+    for _ in range(1024):
+        gps_data += os.read(gps_device, 2048).decode('utf-8')
+
     validity_status = None
     num_satellites = None
     
@@ -333,26 +339,26 @@ def swap_memory():
         return color(f" {output}", "green")
     
 
-# def Usage_cpu():
-#     command = "top -b -n 1 | awk '/%Cpu/ {print 100 - $8"%"}'"
-#     output, error = run_bash_command(command)
-#     print(output)
-#     if error:
-#         return f"\033[1;31;40m Error: {error}\033[0m"
-#     else:
-#         return f"\033[1;32;40m {output}\033[0m"
+def usage_cpu():
+    # command = "top -b -n 1 | awk '/%CPU/ {print 100 - $8"%"}'" # 'CPU' --> all caps
+    command = "top -bn1 | grep '^%Cpu(s)' | awk '{print $8}'" # sugestao: retorna a % do tempo gasto rodando
+                                                           # processos de usuarios (com vírgula, não dá para converter para float)                                                        
+    output, error = run_bash_command(command)
+    idle_time = float(output.strip().replace(',', '.'))
+    usage = 100 - idle_time
+    if error:
+        return color(f" Error: {error} ", "red")
+    else:
+        if idle_time >= 70:
+            return color(f" {usage}% ", "green")
+        elif idle_time >= 50:
+            return color(f" {usage}% ", "yellow")
+        elif idle_time >= 30:
+            return color(f" {usage}% ", "magenta")
+        elif idle_time < 30:
+            return color(f" {usage}% ", "red")
+    
 
-"""
-The main part of the script starts here.
-It sets the log_file_path to a temporary directory and clears the log file's contents at the beginning.
-The script enters an infinite loop where it repeatedly logs various system status information:
-Current date and time.
-Internet connection status.
-Storage space on the root filesystem (expanded or not).
-GPS status.
-Camera status.
-It writes this information to the log file and sleeps for 3 seconds before repeating the process.
-"""
 def main():
     log_file_path = f'/tmp/{daemon_name}.log'
     #clear_log_file(log_file_path)  # Apaga o conteúdo do arquivo de log ao iniciar
@@ -370,14 +376,14 @@ def main():
         signal=modem_signal()
         status=modem_status()
         swapa = swap_memory()
-        cpu = "Working"
+        cpu = usage_cpu()
         interface_e= chk_ethernet_interface()
         interface_wlan= chk_wlan_interface()
         Lte=chk_ttyLTE()
         Ard=chk_ttyARD()
         file.write(f'\n\033[1;34;40m---Driver_analytics Health---\033[0m\nDate:\n\t- {current_time} \n'
                     f'Connection Analysis:\n\t- connection internet: {conncetion_chk}\n\t- Modem IP:{Process_modem}\n\t- Signal: {signal} \n\t- Status: {status} \n'
-                    f'SD Card Analysis:\n\t- Expanded:{c}\n\t- Free disk:{d} \n' 
+                    f'SD Card Analysis:\n\t- Expanded:{c}\n\t- Free disk:{d} \n'
                     f'GPS Analysis:\n\t- GPS Fix: {fix}\n\t- Signal Strength: {sig_str}  \n\t- Avaible Satellites: {sat_num} \n'
                     f'Camera Analysis:\n\t- Camera: {status_camera}\n'
                     f'IMU Analysis:\n\t- Active: {imu}\n'
