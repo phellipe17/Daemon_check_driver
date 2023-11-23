@@ -86,7 +86,8 @@ def check_internet():
 # get_machine_storage(): This function calculates and returns the total and free storage space on the root filesystem. 
 # If the total storage is less than 10 GB, it attempts to expand the root filesystem and requests a reboot.
 def get_machine_storage():
-    phrase = ''
+    total_size_status = ''
+    free_size_status = ''
     result=os.statvfs('/')
     block_size=result.f_frsize
     total_blocks=result.f_blocks
@@ -98,15 +99,15 @@ def get_machine_storage():
     total_size = round(total_size)
     free_size = round(free_size)
     if (total_size > 10):
-        phrase = color(' OK ','green')
+        total_size_status = color(' OK ','green')
     else:
-        phrase = color(' NOK ','red')
+        total_size_status = color(' NOK ','red')
 
     if (free_size < 0.05 * total_size):
-        phrase2 = color(' NOK ','red')
+        free_size_status = color(' NOK ','red')
     else:
-        phrase2 = color(' OK ','green')
-    return phrase, phrase2
+        free_size_status = color(' OK ','green')
+    return total_size_status, free_size_status
 
 # clear_log_file(log_file_path): This function clears the contents of a log file specified by log_file_path.
 def clear_log_file(log_file_path):
@@ -169,7 +170,7 @@ def chk_gps3():
                 countA += 1 
             else:
                 countV += 1
-        elif sentence[3:6] == 'GSV':
+        elif sentence[3:6] == 'GSV'and len(parts) >= 8:
             try:
                 snr = int(parts[7])
                 snr_values.append(snr)
@@ -340,16 +341,15 @@ def swap_memory():
     
 
 def usage_cpu():
-    # command = "top -b -n 1 | awk '/%CPU/ {print 100 - $8"%"}'" # 'CPU' --> all caps
-    command = "top -bn1 | grep '^%Cpu(s)' | awk '{print $8}'" # sugestao: retorna a % do tempo gasto rodando
-                                                           # processos de usuarios (com vírgula, não dá para converter para float)                                                        
+    # command = "top -b -n 1 | awk '/%CPU/ {print 100 - $8"%"}'"
+    command = "top -bn1 | grep '^%Cpu(s)' | awk '{print $8}'"                                                     
     output, error = run_bash_command(command)
     idle_time = float(output.strip().replace(',', '.'))
     usage = 100 - idle_time
     if error:
         return color(f" Error: {error} ", "red")
     else:
-        if idle_time >= 70:
+        if idle_time >= 80:
             return color(f" {usage}% ", "green")
         elif idle_time >= 50:
             return color(f" {usage}% ", "yellow")
@@ -365,25 +365,24 @@ def main():
     #while True:
     with open(log_file_path, 'a') as file:
         current_time = time.strftime('\033[1;36;40m%Y-%m-%d %H:%M:%S\033[0m')
-        c,d = get_machine_storage()
-        #a,b=chk_gps2()
+        total_size,free_size = get_machine_storage()
         fix, sig_str, sat_num = chk_gps3()
-        status_camera=check_camera_status()
+        status_camera = check_camera_status()
         conncetion_chk = check_internet()
         Process_modem = chk_dial_modem()
         imu = imu_check()
-        read_sim= get_ccid()
-        signal=modem_signal()
-        status=modem_status()
+        read_sim = get_ccid()
+        signal = modem_signal()
+        status = modem_status()
         swapa = swap_memory()
         cpu = usage_cpu()
-        interface_e= chk_ethernet_interface()
-        interface_wlan= chk_wlan_interface()
-        Lte=chk_ttyLTE()
-        Ard=chk_ttyARD()
+        interface_e = chk_ethernet_interface()
+        interface_wlan = chk_wlan_interface()
+        Lte = chk_ttyLTE()
+        Ard = chk_ttyARD()
         file.write(f'\n\033[1;34;40m---Driver_analytics Health---\033[0m\nDate:\n\t- {current_time} \n'
                     f'Connection Analysis:\n\t- connection internet: {conncetion_chk}\n\t- Modem IP:{Process_modem}\n\t- Signal: {signal} \n\t- Status: {status} \n'
-                    f'SD Card Analysis:\n\t- Expanded:{c}\n\t- Free disk:{d} \n'
+                    f'SD Card Analysis:\n\t- Expanded:{total_size}\n\t- Free disk:{free_size} \n'
                     f'GPS Analysis:\n\t- GPS Fix: {fix}\n\t- Signal Strength: {sig_str}  \n\t- Avaible Satellites: {sat_num} \n'
                     f'Camera Analysis:\n\t- Camera: {status_camera}\n'
                     f'IMU Analysis:\n\t- Active: {imu}\n'
