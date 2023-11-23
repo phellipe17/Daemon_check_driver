@@ -378,12 +378,11 @@ def main():
         Lte=chk_ttyLTE()
         Ard=chk_ttyARD()
         file.write(f'\n\033[1;34;40m---Driver_analytics Health---\033[0m\nDate:\n\t- {current_time} \n'
-                    f'Connection Analysis:\n\t- connection internet: {conncetion_chk}\n\t- Modem IP:{Process_modem}\n\t- Signal: {signal} \n\t- Status: {status} \n'
+                    f'Modem check:\n\t- Internet connection: {conncetion_chk}\n\t- Modem IP:{Process_modem}\n\t- Signal: {signal} \n\t- Status: {status} \n\t- Sim Card Analysis:\n\t- {read_sim}\n'
                     f'SD Card Analysis:\n\t- Expanded:{c}\n\t- Free disk:{d} \n' 
                     f'GPS Analysis:\n\t- GPS Fix:{fix}\n\t- Signal Strength:{sig_str}  \n\t- Avaible Satellites: {sat_num} \n'
                     f'Camera Analysis:\n\t- Camera: {status_camera}\n'
                     f'IMU Analysis:\n\t- Active: {imu}\n'
-                    f'Sim Card Analysis:\n\t- {read_sim}\n'
                     f'System Analysis:\n\t- Swap usage: {swapa} \n\t- CPU Usage: {cpu} \n\t- ETH0 Interface: {interface_e} \n\t- WLAN Interface: {interface_wlan}\n\t'
                     f'- USB LTE: {Lte} \n\t- USB ARD: {Ard}\n')
     print('\033[1;32;40m Log gerado!\033[0m') 
