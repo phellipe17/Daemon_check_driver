@@ -62,14 +62,14 @@ def imu_check():
 #     except Exception as e:
 #         return f"Erro ao executar o comando: {str(e)}"
     
-def read_iccid():
-    command_icc='sudo timeout 2 cat /dev/ttyUSB4 & sudo stty -F /dev/ttyUSB4 raw -echo & sudo echo -e "AT+CCID\r" > /dev/ttyUSB4'
-    result, error=run_bash_command(command_icc)
-    print(error)
-    if 'OK' in result:
-        return '\033[1;32;40mSim inserted\033[0m'
-    else:
-        return '\033[1;31;40mSim not inserted\033[0m'
+# def read_iccid():
+#     command_icc='sudo timeout 2 cat /dev/ttyUSB4 & sudo stty -F /dev/ttyUSB4 raw -echo & sudo echo -e "AT+CCID\r" > /dev/ttyUSB4'
+#     result, error=run_bash_command(command_icc)
+#     print(error)
+#     if 'OK' in result:
+#         return '\033[1;32;40mSim inserted\033[0m'
+#     else:
+#         return '\033[1;31;40mSim not inserted\033[0m'
         
 
 
@@ -329,6 +329,21 @@ def check_camera_status():
       return color(" OK ", "green")
    except subprocess.CalledProcessError as e:
       return color(f" ERROR({e.returncode})", "red")
+   
+#    inclusao de verificacao se camera está conectada e pronta para uso
+# def check_camera_status():
+#     try:
+#        subprocess.run(["raspistill", "-o", "/tmp/camera_test.jpg", "-w", "640", "-h", "480"], check=True,stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+#        available = color(" YES ", "green")
+#     except subprocess.CalledProcessError as e:
+#        available = color(f" NO - error no:({e.returncode})", "red")
+    
+#     command = "vcgencmd get_camera"
+#     output, error = run_bash_command(command)
+#     detected = color(" YES ", "green") if "detected=1" in output else color(" NO ", "red")
+#     connected = color(" YES ", "green") if "supported=1" in output else color(" NO ", "red")
+        
+#     return detected, connected, available 
 
 def swap_memory():
     command = "free -h | grep -iA 1 swap | tail -n 1 | awk '{printf \"%.2f%%\", ($3/$2)*100}'"
@@ -390,8 +405,7 @@ def main():
                     f'System Analysis:\n\t- Swap usage: {swapa} \n\t- CPU Usage: {cpu} \n\t- ETH0 Interface: {interface_e} \n\t- WLAN Interface: {interface_wlan}\n\t'
                     f'- USB LTE: {Lte} \n\t- USB ARD: {Ard}\n')
     print(color(" Log gerado! ", "green")) 
-        #time.sleep(3)
-            
+        #time.sleep(3)           
 
 
 if __name__ == '__main__':
