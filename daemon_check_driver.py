@@ -15,6 +15,8 @@ def color(msg, collor):
         return f'\033[1;31;40m{msg}\033[0m'
     elif collor == "yellow":
         return f'\033[1;33;40m{msg}\033[0m'
+    elif collor == "magenta":
+        return f'\033[1;35;40m{msg}\033[0m'
 
 # This function runs a shell command specified as command and returns its standard output and standard error as strings.
 def run_bash_command(command):
@@ -60,14 +62,14 @@ def imu_check():
 #     except Exception as e:
 #         return f"Erro ao executar o comando: {str(e)}"
     
-def read_iccid():
-    command_icc='sudo timeout 2 cat /dev/ttyUSB4 & sudo stty -F /dev/ttyUSB4 raw -echo & sudo echo -e "AT+CCID\r" > /dev/ttyUSB4'
-    result, error=run_bash_command(command_icc)
-    print(error)
-    if 'OK' in result:
-        return '\033[1;32;40mSim inserted\033[0m'
-    else:
-        return '\033[1;31;40mSim not inserted\033[0m'
+# def read_iccid():
+#     command_icc='sudo timeout 2 cat /dev/ttyUSB4 & sudo stty -F /dev/ttyUSB4 raw -echo & sudo echo -e "AT+CCID\r" > /dev/ttyUSB4'
+#     result, error=run_bash_command(command_icc)
+#     print(error)
+#     if 'OK' in result:
+#         return '\033[1;32;40mSim inserted\033[0m'
+#     else:
+#         return '\033[1;31;40mSim not inserted\033[0m'
         
 
 
@@ -84,7 +86,8 @@ def check_internet():
 # get_machine_storage(): This function calculates and returns the total and free storage space on the root filesystem. 
 # If the total storage is less than 10 GB, it attempts to expand the root filesystem and requests a reboot.
 def get_machine_storage():
-    phrase = ''
+    total_size_status = ''
+    free_size_status = ''
     result=os.statvfs('/')
     block_size=result.f_frsize
     total_blocks=result.f_blocks
@@ -96,15 +99,15 @@ def get_machine_storage():
     total_size = round(total_size)
     free_size = round(free_size)
     if (total_size > 10):
-        phrase = color(' OK ','green')
+        total_size_status = color(' OK ','green')
     else:
-        phrase = color(' NOK ','red')
+        total_size_status = color(' NOK ','red')
 
     if (free_size < 0.05 * total_size):
-        phrase2 = color(' NOK ','red')
+        free_size_status = color(' NOK ','red')
     else:
-        phrase2 = color(' OK ','green')
-    return phrase, phrase2
+        free_size_status = color(' OK ','green')
+    return total_size_status, free_size_status
 
 # clear_log_file(log_file_path): This function clears the contents of a log file specified by log_file_path.
 def clear_log_file(log_file_path):
@@ -142,69 +145,69 @@ def chk_gps3():
     gps_data = ""
     for _ in range(1024):
         gps_data += os.read(gps_device, 2048).decode('utf-8')
+
     validity_status = None
     num_satellites = None
-    signal_strength = None
     
     nmea_sentences = gps_data.split('\n') # Split the GPS data into individual NMEA sentences
-    gsa_counter = 0
-    avg_signal_strength = 0
-    avg_num_satellites = 0
     countA = 0
     countV = 0
-    avg_fix = 0
+    fix_values = []
+    snr_values = []
+    satellites = []
     for sentence in nmea_sentences:
+        parts = sentence.split(',')
         if sentence[3:6] == 'GSA':
             # Parse the GNGSA sentence for fix mode, number of satellites, and signal strength
-            parts = sentence.split(',')
-            avg_fix += int(parts[2])
+            fix_values.append(int(parts[2]))
             num_satellites = len([s for s in parts[3:15] if s])
             if len(parts) >= 16:
-                signal_strength = parts[16]
-                if signal_strength:
-                    avg_signal_strength += float(signal_strength)
-                    avg_num_satellites += float(num_satellites)
-            gsa_counter +=1
+                satellites.append(float(num_satellites))
         elif sentence[3:6] == 'RMC':
             # Parse the GPRMC sentence for validity status
-            parts = sentence.split(',')
             validity_status = parts[2]
             if parts[2] == 'A':
                 countA += 1 
             else:
                 countV += 1
-    
+        elif sentence[3:6] == 'GSV'and len(parts) >= 8:
+            try:
+                snr = int(parts[7])
+                snr_values.append(snr)
+            except ValueError:
+                pass
+            
     # Determine the result based on parsed information
     validity_status = 'A' if countA > 1.75 * countV else 'V'
-    avg_signal_strength /= gsa_counter
-    avg_num_satellites /= gsa_counter
-    avg_fix /= gsa_counter
+    avg_snr = sum(snr_values) / len(snr_values) if len(snr_values) > 0 else 0
+    avg_num_satellites = sum(satellites) / len(satellites) if len(satellites) > 0 else 0
+    avg_fix = sum(fix_values) / len(fix_values) if len(fix_values) > 0 else 0
     fix = 0
     sat_num = 0
     sig_str = 0
 
     if avg_fix > 2 and validity_status == 'A':
-        fix = "\033[1;32;40m3D\033[0m"
+        fix = color("3D", "green")
     elif avg_fix <= 2 and validity_status == 'A':
-        fix = "\033[1;33;40m2D\033[0m"
+        fix = color("2D", "yellow")
     else:
-        fix = "\033[1;31;40mNo Fix\033[0m"
+        fix = color("No Fix", "red")
 
-    if signal_strength is not None:
-        if avg_signal_strength > 0.5:
-            sig_str = f"\033[1;32;40m{avg_signal_strength:.2f}\033[0m"
-        elif avg_signal_strength > 0.5:
-            sig_str = f"\033[1;33;40m{avg_signal_strength:.2f}\033[0m"
+    if snr_values:
+        if avg_snr >= 35:
+            sig_str = color(f"{avg_snr:.2f}", "green")
+        elif avg_snr >= 25:
+            sig_str = color(f"{avg_snr:.2f}", "yellow")
         else:
-            sig_str = f"\033[1;31;40m{avg_signal_strength:.2f}\033[0m"
+            sig_str = color(f"{avg_snr:.2f}", "red")
 
     if num_satellites is not None:
-        if avg_num_satellites > 0.5:
-            sat_num = f"\033[1;32;40m{avg_num_satellites:.0f}\033[0m"
-        elif avg_num_satellites > 0.2:
-            sat_num = f"\033[1;33;40m{avg_num_satellites:.0f}\033[0m"
+        if avg_num_satellites >= 8:
+            sat_num = color(f"{avg_num_satellites:.0f}", "green")
+        elif avg_num_satellites >= 5:
+            sat_num = color(f"{avg_num_satellites:.0f}", "yellow")
         else:
-            sat_num = f"\033[1;31;40m{avg_num_satellites:.0f}\033[0m"
+            sat_num = color(f"{avg_num_satellites:.0f}", "red")
     
     return fix, sig_str, sat_num
     
@@ -287,11 +290,13 @@ def modem_signal():
     result2= result.split("\n")[1].split(":")[1].strip()	    
     if len(result2)>0:
         signal_strength=float(result2.replace(',','.'))
-        if(signal_strength>20):
+        if(signal_strength==99):
+            return color('No signal','magenta')
+        elif(signal_strength>=31):
             return color(' Strong signal ','green')
-        elif(signal_strength<=20 & signal_strength>15):
-            return color(' Mediun signal ','yellow')
-        else:
+        elif(signal_strength<31 and signal_strength>=2):
+            return color(' Medium signal ','yellow')
+        elif(signal_strength<2 and  signal_strength>=0):
             return color(' Low signal ','red')
     else:
         return 0
@@ -313,81 +318,94 @@ def get_ccid():
     # print(result)
     ccid = result.split("\n")[1].split(" ")[1]
     if 'OK' in result and ccid:
-        return f'Sim\033[1;32;40m inserted - CCID: {ccid}\033[0m'
+        return color(f' Sim inserted - CCID: {ccid}', 'green')
     else:
-        return 'Sim\033[1;31;40m not inserted\033[0m'   
+        return color(' Sim not inserted', 'red')
 
 #checa se é possivel tirar um frame com a camera para testar se ela esta funcionando
 def check_camera_status():
    try:
       subprocess.run(["raspistill", "-o", "/tmp/camera_test.jpg", "-w", "640", "-h", "480"], check=True,stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-      return"\033[1;32;40m OK\033[0m"
+      return color(" OK ", "green")
    except subprocess.CalledProcessError as e:
-      return f"\033[1;31;40m ERROR({e.returncode})\033[0m"
+      return color(f" ERROR({e.returncode})", "red")
+   
+#    inclusao de verificacao se camera está conectada e pronta para uso
+# def check_camera_status():
+#     try:
+#        subprocess.run(["raspistill", "-o", "/tmp/camera_test.jpg", "-w", "640", "-h", "480"], check=True,stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+#        available = color(" YES ", "green")
+#     except subprocess.CalledProcessError as e:
+#        available = color(f" NO - error no:({e.returncode})", "red")
+    
+#     command = "vcgencmd get_camera"
+#     output, error = run_bash_command(command)
+#     detected = color(" YES ", "green") if "detected=1" in output else color(" NO ", "red")
+#     connected = color(" YES ", "green") if "supported=1" in output else color(" NO ", "red")
+        
+#     return detected, connected, available 
 
 def swap_memory():
     command = "free -h | grep -iA 1 swap | tail -n 1 | awk '{printf \"%.2f%%\", ($3/$2)*100}'"
     output, error = run_bash_command(command)
     
     if error:
-        return f"\033[1;31;40m Error: {error} \033[0m"
+        return color(f" Error: {error} ", "red")
     else:
-        return f"\033[1;32;40m {output}\033[0m"
+        return color(f" {output}", "green")
     
 
-# def Usage_cpu():
-#     command = "top -b -n 1 | awk '/%Cpu/ {print 100 - $8"%"}'"
-#     output, error = run_bash_command(command)
-#     print(output)
-#     if error:
-#         return f"\033[1;31;40m Error: {error}\033[0m"
-#     else:
-#         return f"\033[1;32;40m {output}\033[0m"
+def usage_cpu():
+    # command = "top -b -n 1 | awk '/%CPU/ {print 100 - $8"%"}'"
+    command = "top -bn1 | grep '^%Cpu(s)' | awk '{print $8}'"                                                     
+    output, error = run_bash_command(command)
+    idle_time = float(output.strip().replace(',', '.'))
+    usage = 100 - idle_time
+    if error:
+        return color(f" Error: {error} ", "red")
+    else:
+        if idle_time >= 80:
+            return color(f" {usage}% ", "green")
+        elif idle_time >= 50:
+            return color(f" {usage}% ", "yellow")
+        elif idle_time >= 30:
+            return color(f" {usage}% ", "magenta")
+        elif idle_time < 30:
+            return color(f" {usage}% ", "red")
+    
 
-"""
-The main part of the script starts here.
-It sets the log_file_path to a temporary directory and clears the log file's contents at the beginning.
-The script enters an infinite loop where it repeatedly logs various system status information:
-Current date and time.
-Internet connection status.
-Storage space on the root filesystem (expanded or not).
-GPS status.
-Camera status.
-It writes this information to the log file and sleeps for 3 seconds before repeating the process.
-"""
 def main():
     log_file_path = f'/tmp/{daemon_name}.log'
     #clear_log_file(log_file_path)  # Apaga o conteúdo do arquivo de log ao iniciar
     #while True:
     with open(log_file_path, 'a') as file:
         current_time = time.strftime('\033[1;36;40m%Y-%m-%d %H:%M:%S\033[0m')
-        c,d = get_machine_storage()
-        #a,b=chk_gps2()
+        total_size,free_size = get_machine_storage()
         fix, sig_str, sat_num = chk_gps3()
-        status_camera=check_camera_status()
+        status_camera = check_camera_status()
         conncetion_chk = check_internet()
         Process_modem = chk_dial_modem()
         imu = imu_check()
-        read_sim= get_ccid()
-        signal=modem_signal()
-        status=modem_status()
+        read_sim = get_ccid()
+        signal = modem_signal()
+        status = modem_status()
         swapa = swap_memory()
-        cpu = "Working"
-        interface_e= chk_ethernet_interface()
-        interface_wlan= chk_wlan_interface()
-        Lte=chk_ttyLTE()
-        Ard=chk_ttyARD()
+        cpu = usage_cpu()
+        interface_e = chk_ethernet_interface()
+        interface_wlan = chk_wlan_interface()
+        Lte = chk_ttyLTE()
+        Ard = chk_ttyARD()
         file.write(f'\n\033[1;34;40m---Driver_analytics Health---\033[0m\nDate:\n\t- {current_time} \n'
-                    f'Modem check:\n\t- Internet connection: {conncetion_chk}\n\t- Modem IP:{Process_modem}\n\t- Signal: {signal} \n\t- Status: {status} \n\t- Sim Card Analysis:\n\t- {read_sim}\n'
-                    f'SD Card Analysis:\n\t- Expanded:{c}\n\t- Free disk:{d} \n' 
-                    f'GPS Analysis:\n\t- GPS Fix:{fix}\n\t- Signal Strength:{sig_str}  \n\t- Avaible Satellites: {sat_num} \n'
+                    f'Connection Analysis:\n\t- connection internet: {conncetion_chk}\n\t- Modem IP:{Process_modem}\n\t- Signal: {signal} \n\t- Status: {status} \n'
+                    f'SD Card Analysis:\n\t- Expanded:{total_size}\n\t- Free disk:{free_size} \n'
+                    f'GPS Analysis:\n\t- GPS Fix: {fix}\n\t- Signal Strength: {sig_str}  \n\t- Avaible Satellites: {sat_num} \n'
                     f'Camera Analysis:\n\t- Camera: {status_camera}\n'
+                    # f'Camera Analysis:\n\t- Detected: {detected}\n\t- Connected: {connected}\n\t- Available: {available}\n'
                     f'IMU Analysis:\n\t- Active: {imu}\n'
                     f'System Analysis:\n\t- Swap usage: {swapa} \n\t- CPU Usage: {cpu} \n\t- ETH0 Interface: {interface_e} \n\t- WLAN Interface: {interface_wlan}\n\t'
                     f'- USB LTE: {Lte} \n\t- USB ARD: {Ard}\n')
-    print('\033[1;32;40m Log gerado!\033[0m') 
-        #time.sleep(3)
-            
+    print(color(" Log gerado! ", "green")) 
+        #time.sleep(3)           
 
 
 if __name__ == '__main__':
