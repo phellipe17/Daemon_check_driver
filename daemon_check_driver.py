@@ -323,27 +323,27 @@ def get_ccid():
         return color(' Sim not inserted', 'red')
 
 #checa se é possivel tirar um frame com a camera para testar se ela esta funcionando
-def check_camera_status():
-   try:
-      subprocess.run(["raspistill", "-o", "/tmp/camera_test.jpg", "-w", "640", "-h", "480"], check=True,stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-      return color(" OK ", "green")
-   except subprocess.CalledProcessError as e:
-      return color(f" ERROR({e.returncode})", "red")
+# def check_camera_status():
+#    try:
+#       subprocess.run(["raspistill", "-o", "/tmp/camera_test.jpg", "-w", "640", "-h", "480"], check=True,stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+#       return color(" OK ", "green")
+#    except subprocess.CalledProcessError as e:
+#       return color(f" ERROR({e.returncode})", "red")
    
 #    inclusao de verificacao se camera está conectada e pronta para uso
-# def check_camera_status():
-#     try:
-#        subprocess.run(["raspistill", "-o", "/tmp/camera_test.jpg", "-w", "640", "-h", "480"], check=True,stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-#        available = color(" YES ", "green")
-#     except subprocess.CalledProcessError as e:
-#        available = color(f" NO - error no:({e.returncode})", "red")
+def check_camera_status():
+    try:
+       subprocess.run(["raspistill", "-o", "/tmp/camera_test.jpg", "-w", "640", "-h", "480"], check=True,stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+       available = color(" YES ", "green")
+    except subprocess.CalledProcessError as e:
+       available = color(f" NO - error no:({e.returncode})", "red")
     
-#     command = "vcgencmd get_camera"
-#     output, error = run_bash_command(command)
-#     detected = color(" YES ", "green") if "detected=1" in output else color(" NO ", "red")
-#     connected = color(" YES ", "green") if "supported=1" in output else color(" NO ", "red")
+    command = "vcgencmd get_camera"
+    output, error = run_bash_command(command)
+    detected = color(" YES ", "green") if "detected=1" in output else color(" NO ", "red")
+    connected = color(" YES ", "green") if "supported=1" in output else color(" NO ", "red")
         
-#     return detected, connected, available 
+    return detected, connected, available 
 
 def swap_memory():
     command = "free -h | grep -iA 1 swap | tail -n 1 | awk '{printf \"%.2f%%\", ($3/$2)*100}'"
@@ -382,11 +382,12 @@ def main():
         current_time = time.strftime('\033[1;36;40m%Y-%m-%d %H:%M:%S\033[0m')
         total_size,free_size = get_machine_storage()
         fix, sig_str, sat_num = chk_gps3()
-        status_camera = check_camera_status()
+        # status_camera = check_camera_status()
+        detected,connected,available = check_camera_status()
         conncetion_chk = check_internet()
         Process_modem = chk_dial_modem()
         imu = imu_check()
-        read_sim = get_ccid()
+        # read_sim = get_ccid()
         signal = modem_signal()
         status = modem_status()
         swapa = swap_memory()
@@ -399,8 +400,8 @@ def main():
                     f'Connection Analysis:\n\t- connection internet: {conncetion_chk}\n\t- Modem IP:{Process_modem}\n\t- Signal: {signal} \n\t- Status: {status} \n'
                     f'SD Card Analysis:\n\t- Expanded:{total_size}\n\t- Free disk:{free_size} \n'
                     f'GPS Analysis:\n\t- GPS Fix: {fix}\n\t- Signal Strength: {sig_str}  \n\t- Avaible Satellites: {sat_num} \n'
-                    f'Camera Analysis:\n\t- Camera: {status_camera}\n'
-                    # f'Camera Analysis:\n\t- Detected: {detected}\n\t- Connected: {connected}\n\t- Available: {available}\n'
+                    # f'Camera Analysis:\n\t- Camera: {status_camera}\n'
+                    f'Camera Analysis:\n\t- Detected: {detected}\n\t- Connected: {connected}\n\t- Available: {available}\n'
                     f'IMU Analysis:\n\t- Active: {imu}\n'
                     f'System Analysis:\n\t- Swap usage: {swapa} \n\t- CPU Usage: {cpu} \n\t- ETH0 Interface: {interface_e} \n\t- WLAN Interface: {interface_wlan}\n\t'
                     f'- USB LTE: {Lte} \n\t- USB ARD: {Ard}\n')
