@@ -402,7 +402,6 @@ def main():
                     f'Camera Analysis:\n\t- Camera: {status_camera}\n'
                     # f'Camera Analysis:\n\t- Detected: {detected}\n\t- Connected: {connected}\n\t- Available: {available}\n'
                     f'IMU Analysis:\n\t- Active: {imu}\n'
-                    f'Sim Card Analysis:\n\t- {read_sim}\n'
                     f'System Analysis:\n\t- Swap usage: {swapa} \n\t- CPU Usage: {cpu} \n\t- ETH0 Interface: {interface_e} \n\t- WLAN Interface: {interface_wlan}\n\t'
                     f'- USB LTE: {Lte} \n\t- USB ARD: {Ard}\n')
     print(color(" Log gerado! ", "green")) 

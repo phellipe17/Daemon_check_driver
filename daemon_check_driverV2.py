@@ -324,7 +324,6 @@ It writes this information to the log file and sleeps for 3 seconds before repea
 """
 def main():
     current_time = time.strftime('\033[1;36;40m%Y-%m-%d %H:%M:%S\033[0m')
-    #a,b=chk_gps2()
     fix,gps_status = chk_gps3()
     connection_chk = check_internet()
     Process_modem = chk_dial_modem()
