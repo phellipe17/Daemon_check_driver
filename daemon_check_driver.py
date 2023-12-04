@@ -332,6 +332,31 @@ def get_ccid():
    
 #    inclusao de verificacao se camera está conectada e pronta para uso
 def check_camera_status():
+    command_frame="tail -n10 .driver_analytics/logs/current/camera.log"
+    result, error=run_bash_command(command_frame)
+    available=color(" YES ","green")
+    if "Error opening the camera" in result:
+        available = color(" NO ", "red")
+    else:
+        last_log_line=run_bash_command('tail -n2 .driver_analytics/logs/current/camera.log')
+        data_hora_ultima_msg_str = str(last_log_line).split(']')[0].strip('[')[-19:]
+        timestamp_ultima_msg = time.mktime(time.strptime(data_hora_ultima_msg_str, '%d/%m/%Y %H:%M:%S'))
+        # Calcular a diferença de tempo
+        diferenca_tempo = time.time() - timestamp_ultima_msg
+        if(diferenca_tempo>60):
+            available=color(" NO ","red")
+        #print("Diferença de tempo:", round(diferenca_tempo), "segundos")
+
+    command = "vcgencmd get_camera"
+    output, error = run_bash_command(command)
+    detected = color(" YES ", "green") if "detected=1" in output else color(" NO ", "red")
+    
+        
+    return detected, available
+
+
+
+def check_camera_status2():
     try:
        subprocess.run(["raspistill", "-o", "/tmp/camera_test.jpg", "-w", "640", "-h", "480"], check=True,stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
        available = color(" YES ", "green")
@@ -343,7 +368,7 @@ def check_camera_status():
     detected = color(" YES ", "green") if "detected=1" in output else color(" NO ", "red")
     connected = color(" YES ", "green") if "supported=1" in output else color(" NO ", "red")
         
-    return detected, connected, available 
+    return detected, connected, available  
 
 def swap_memory():
     command = "free -h | grep -iA 1 swap | tail -n 1 | awk '{printf \"%.2f%%\", ($3/$2)*100}'"
@@ -368,9 +393,9 @@ def usage_cpu():
             return color(f" {usage}% ", "green")
         elif idle_time >= 50:
             return color(f" {usage}% ", "yellow")
-        elif idle_time >= 30:
+        elif idle_time >= 20:
             return color(f" {usage}% ", "magenta")
-        elif idle_time < 30:
+        elif idle_time < 20:
             return color(f" {usage}% ", "red")
     
 
@@ -383,7 +408,7 @@ def main():
         total_size,free_size = get_machine_storage()
         fix, sig_str, sat_num = chk_gps3()
         # status_camera = check_camera_status()
-        detected,connected,available = check_camera_status()
+        detected,available = check_camera_status()
         conncetion_chk = check_internet()
         Process_modem = chk_dial_modem()
         imu = imu_check()
@@ -401,11 +426,11 @@ def main():
                     f'SD Card Analysis:\n\t- Expanded:{total_size}\n\t- Free disk:{free_size} \n'
                     f'GPS Analysis:\n\t- GPS Fix: {fix}\n\t- Signal Strength: {sig_str}  \n\t- Avaible Satellites: {sat_num} \n'
                     # f'Camera Analysis:\n\t- Camera: {status_camera}\n'
-                    f'Camera Analysis:\n\t- Detected: {detected}\n\t- Connected: {connected}\n\t- Available: {available}\n'
+                    f'Camera Analysis:\n\t- Detected: {detected}\n\t- Available: {available}\n'
                     f'IMU Analysis:\n\t- Active: {imu}\n'
                     f'System Analysis:\n\t- Swap usage: {swapa} \n\t- CPU Usage: {cpu} \n\t- ETH0 Interface: {interface_e} \n\t- WLAN Interface: {interface_wlan}\n\t'
                     f'- USB LTE: {Lte} \n\t- USB ARD: {Ard}\n')
-    print(color(" Log gerado! ", "green")) 
+    print(color(" Log gerado! ", "green"))
         #time.sleep(3)           
 
 
