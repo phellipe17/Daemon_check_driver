@@ -5,18 +5,23 @@ import os
 import subprocess
 import serial
 
+# Caminho do diretório
+directory_path = '/home/pi/.driver_analytics/logs/current/'
+
+
 #from daemonize import Daemonize
 daemon_name = 'chk_status'
 
 def color(msg, collor):
-    if collor == "green":
-        return f'\033[1;32;40m{msg}\033[0m'
-    elif collor == "red":
-        return f'\033[1;31;40m{msg}\033[0m'
-    elif collor == "yellow":
-        return f'\033[1;33;40m{msg}\033[0m'
-    elif collor == "magenta":
-        return f'\033[1;35;40m{msg}\033[0m'
+    return msg
+    # if collor == "green":
+    #     return f'\033[1;32;40m{msg}\033[0m'
+    # elif collor == "red":
+    #     return f'\033[1;31;40m{msg}\033[0m'
+    # elif collor == "yellow":
+    #     return f'\033[1;33;40m{msg}\033[0m'
+    # elif collor == "magenta":
+    #     return f'\033[1;35;40m{msg}\033[0m'
 
 # This function runs a shell command specified as command and returns its standard output and standard error as strings.
 def run_bash_command(command):
@@ -332,13 +337,14 @@ def get_ccid():
    
 #    inclusao de verificacao se camera está conectada e pronta para uso
 def check_camera_status():
-    command_frame="tail -n10 .driver_analytics/logs/current/camera.log"
+    command_frame="tail -n10 /home/pi/.driver_analytics/logs/current/camera.log"
     result, error=run_bash_command(command_frame)
     available=color(" YES ","green")
     if "Error opening the camera" in result:
         available = color(" NO ", "red")
     else:
-        last_log_line=run_bash_command('tail -n2 .driver_analytics/logs/current/camera.log')
+        last_log_line=run_bash_command('tail -n2 /home/pi/.driver_analytics/logs/current/camera.log')
+        print(last_log_line)
         data_hora_ultima_msg_str = str(last_log_line).split(']')[0].strip('[')[-19:]
         timestamp_ultima_msg = time.mktime(time.strptime(data_hora_ultima_msg_str, '%d/%m/%Y %H:%M:%S'))
         # Calcular a diferença de tempo
@@ -397,14 +403,30 @@ def usage_cpu():
             return color(f" {usage}% ", "magenta")
         elif idle_time < 20:
             return color(f" {usage}% ", "red")
+        
+def temp_system():
+    command = "cat /sys/class/thermal/thermal_zone0/temp"
+    output, error = run_bash_command(command)
+    tempe=round(int(output)/1000)
+    if error:
+        return color(f" Error: {error} ", "red")
+    else:
+        if tempe >= 80:
+            return color(f"{tempe}°", "red")
+        elif tempe >= 60 & tempe <80:
+            return color(f"{tempe}°", "yellow")
+        elif tempe<60:
+            return color(f"{tempe}°", "green")
+        
     
 
 def main():
-    log_file_path = f'/tmp/{daemon_name}.log'
+    #log_file_path = f'/home/pi/.monitor/logs/current/{daemon_name}.log'
+    log_file_path = '/var/log/checking_health.log'
     #clear_log_file(log_file_path)  # Apaga o conteúdo do arquivo de log ao iniciar
     #while True:
     with open(log_file_path, 'a') as file:
-        current_time = time.strftime('\033[1;36;40m%Y-%m-%d %H:%M:%S\033[0m')
+        current_time = time.strftime('%Y-%m-%d %H:%M:%S')
         total_size,free_size = get_machine_storage()
         fix, sig_str, sat_num = chk_gps3()
         # status_camera = check_camera_status()
@@ -421,17 +443,18 @@ def main():
         interface_wlan = chk_wlan_interface()
         Lte = chk_ttyLTE()
         Ard = chk_ttyARD()
-        file.write(f'\n\033[1;34;40m---Driver_analytics Health---\033[0m\nDate:\n\t- {current_time} \n'
+        temperature= temp_system()
+        # file.write(f'\n\033[1;34;40m---Driver_analytics Health---\033[0m\nDate:\n\t- {current_time} \n'
+        file.write(f'\n---Driver_analytics Health---\nDate:\n\t- {current_time} \n'
                     f'Connection Analysis:\n\t- connection internet: {conncetion_chk}\n\t- Modem IP:{Process_modem}\n\t- Signal: {signal} \n\t- Status: {status} \n'
                     f'SD Card Analysis:\n\t- Expanded:{total_size}\n\t- Free disk:{free_size} \n'
                     f'GPS Analysis:\n\t- GPS Fix: {fix}\n\t- Signal Strength: {sig_str}  \n\t- Avaible Satellites: {sat_num} \n'
-                    # f'Camera Analysis:\n\t- Camera: {status_camera}\n'
                     f'Camera Analysis:\n\t- Detected: {detected}\n\t- Available: {available}\n'
                     f'IMU Analysis:\n\t- Active: {imu}\n'
                     f'System Analysis:\n\t- Swap usage: {swapa} \n\t- CPU Usage: {cpu} \n\t- ETH0 Interface: {interface_e} \n\t- WLAN Interface: {interface_wlan}\n\t'
-                    f'- USB LTE: {Lte} \n\t- USB ARD: {Ard}\n')
-    print(color(" Log gerado! ", "green"))
-        #time.sleep(3)           
+                    f'- USB LTE: {Lte} \n\t- USB ARD: {Ard}\n\t- Temperature: {temperature}\n')
+    #print(color(" Log gerado! ", "green"))
+    #time.sleep(300)           
 
 
 if __name__ == '__main__':

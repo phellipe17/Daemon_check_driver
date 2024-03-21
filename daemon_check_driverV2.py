@@ -210,6 +210,7 @@ def chk_ttyLTE():
 
 
 def send_serial_command(command):
+    ser = None
     try:
         ser = serial.Serial("/dev/ttyMDN", 115200)
         
@@ -238,7 +239,7 @@ def send_serial_command(command):
         return "Serial Exception"
     finally:
         # Always close the serial connection
-        if ser.isOpen():
+        if ser is not None and ser.isOpen():
             ser.close()
 
 def modem_signal():
