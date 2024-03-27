@@ -4,24 +4,30 @@ import socket
 import os
 import subprocess
 import serial
+import json, requests
 
 # Caminho do diretório
 directory_path = '/home/pi/.driver_analytics/logs/current/'
-
+r = requests.session()
+DEBUG = True
 
 #from daemonize import Daemonize
 daemon_name = 'chk_status'
 
 def color(msg, collor):
-    return msg
-    # if collor == "green":
-    #     return f'\033[1;32;40m{msg}\033[0m'
-    # elif collor == "red":
-    #     return f'\033[1;31;40m{msg}\033[0m'
-    # elif collor == "yellow":
-    #     return f'\033[1;33;40m{msg}\033[0m'
-    # elif collor == "magenta":
-    #     return f'\033[1;35;40m{msg}\033[0m'
+    coloring=False #False para não imprimir com cor, True para sair com cor
+    
+    if coloring==False:
+        return msg
+    else:
+        if collor == "green":
+            return f'\033[1;32;40m{msg}\033[0m'
+        elif collor == "red":
+            return f'\033[1;31;40m{msg}\033[0m'
+        elif collor == "yellow":
+            return f'\033[1;33;40m{msg}\033[0m'
+        elif collor == "magenta":
+            return f'\033[1;35;40m{msg}\033[0m'
 
 # This function runs a shell command specified as command and returns its standard output and standard error as strings.
 def run_bash_command(command):
@@ -344,7 +350,6 @@ def check_camera_status():
         available = color(" NO ", "red")
     else:
         last_log_line=run_bash_command('tail -n2 /home/pi/.driver_analytics/logs/current/camera.log')
-        print(last_log_line)
         data_hora_ultima_msg_str = str(last_log_line).split(']')[0].strip('[')[-19:]
         timestamp_ultima_msg = time.mktime(time.strptime(data_hora_ultima_msg_str, '%d/%m/%Y %H:%M:%S'))
         # Calcular a diferença de tempo
@@ -417,12 +422,101 @@ def temp_system():
             return color(f"{tempe}°", "yellow")
         elif tempe<60:
             return color(f"{tempe}°", "green")
-        
+
+def get_mac():
+    command = "ifconfig eth0 | grep -oE '([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}'"
+    output,error= run_bash_command(command)
+    return output
+
+def log(s, value=None):
+    if DEBUG:
+        if (value==None):
+            print(s)
+        else:
+            print(s, value)
+
+
+#função para fazer login na api driveranalytics
+def login(urlbase, url, user, password):
+    global r
+
+
     
+
+    params =    {
+                    'username': user,
+                    'password': password
+                }
+
+    urlApi = urlbase + url
+    log(urlApi)
+    log(user)
+    log(password)
+
+    try:
+        r.headers.clear()
+        r.cookies.clear()
+        r = requests.post(urlApi, params=params, timeout=6.0)
+    except (requests.exceptions.ConnectTimeout, requests.exceptions.HTTPError, requests.exceptions.ReadTimeout, requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
+        log("Connection error - try again")
+        log(e)
+        return 502, {}
+    except requests.exceptions.RequestException as e:  # This is the correct syntax
+        log(e)
+        log("error on login")
+        return 500, {}
+
+    ret_status_code = r.status_code
+    log("[login] ret code", ret_status_code)
+
+    response_json = {}
+
+    if ret_status_code == 201:
+        log("[login] Success! ")
+        response_json = r.json()
+        global company
+        company = response_json['user']['company']['id']
+        response_json = response_json['token']
+    else:
+        log("[login] Error")
+
+    return ret_status_code, response_json
+
+#função para fazer o post na api driveranalytics        
+def postChekingHealth(urlbase, url, idVehicle, token):
+    global r
+
+    urlApi = urlbase + url + idVehicle + "/getConfigIni"
+
+    log(urlApi)
+
+    try:
+        r.headers.clear()
+        r.cookies.clear()
+        # Enviar uma solicitação POST com os parâmetros necessários
+        r = requests.post(urlApi, headers={"Authorization":"Bearer " + token, 'Cache-Control': 'no-cache' })
+    except requests.exceptions.RequestException as e:  
+        log(e)
+        log("error on postVehicle")
+        return 500, {}
+
+    ret_status_code = r.status_code
+    log("[postVehicle] ret code", ret_status_code)
+
+    response_json = {}
+
+    if ret_status_code == 200:
+        log("[postVehicle] Success! ")
+        response_json = r.json()  # Convertendo a resposta para JSON
+    else:
+        log("[postVehicle] Error")
+
+    return ret_status_code, response_json
 
 def main():
     #log_file_path = f'/home/pi/.monitor/logs/current/{daemon_name}.log'
     log_file_path = '/var/log/checking_health.log'
+    desired_size_bytes = 2 * 1024 * 1024
     #clear_log_file(log_file_path)  # Apaga o conteúdo do arquivo de log ao iniciar
     #while True:
     with open(log_file_path, 'a') as file:
@@ -444,6 +538,7 @@ def main():
         Lte = chk_ttyLTE()
         Ard = chk_ttyARD()
         temperature= temp_system()
+        macmac=get_mac()
         # file.write(f'\n\033[1;34;40m---Driver_analytics Health---\033[0m\nDate:\n\t- {current_time} \n'
         file.write(f'\n---Driver_analytics Health---\nDate:\n\t- {current_time} \n'
                     f'Connection Analysis:\n\t- connection internet: {conncetion_chk}\n\t- Modem IP:{Process_modem}\n\t- Signal: {signal} \n\t- Status: {status} \n'
@@ -452,9 +547,56 @@ def main():
                     f'Camera Analysis:\n\t- Detected: {detected}\n\t- Available: {available}\n'
                     f'IMU Analysis:\n\t- Active: {imu}\n'
                     f'System Analysis:\n\t- Swap usage: {swapa} \n\t- CPU Usage: {cpu} \n\t- ETH0 Interface: {interface_e} \n\t- WLAN Interface: {interface_wlan}\n\t'
-                    f'- USB LTE: {Lte} \n\t- USB ARD: {Ard}\n\t- Temperature: {temperature}\n')
+                    f'- USB LTE: {Lte} \n\t- USB ARD: {Ard}\n\t- Temperature: {temperature}\n\t- Mac Adress: {macmac}\n')
+        file.truncate(desired_size_bytes)
+        
+    data = {
+        "date": current_time,
+        "connection_analysis":
+         {
+            "connection_internet": conncetion_chk,
+            "Modem_IP": Process_modem,
+            "Signal": signal,
+            "Status": status
+        },
+        "SD_Card_Analysis": {
+            "Expanded": total_size,
+            "Free_disk": free_size
+        },
+        "GPS_Analysis": {
+            "GPS_Fix": fix,
+            "Signal_Strength": sig_str,
+            "Avaible_Satellites": sat_num
+        },
+        "Camera_Analysis": {
+            "Detected": detected,
+            "Available": available
+        },
+        "IMU_Analysis": {
+            "Active": imu
+        },
+        "System_Analysis": {
+            "Swap_usage": swapa,
+            "CPU_Usage": cpu,
+            "ETH0_Interface": interface_e,
+            "WLAN_Interface": interface_wlan,
+            "USB_LTE": Lte,
+            "USB_ARD": Ard,
+            "Temperature": temperature,
+            "Mac_Adress": macmac
+        }   
+        
+    }
     #print(color(" Log gerado! ", "green"))
-    #time.sleep(300)           
+    json_data = json.dumps(data)
+    print(json_data)
+    headers = {'Content-Type': 'application/json'}
+    url="https://0389-131-255-20-4.ngrok-free.app/heartbeat"
+    response = requests.post(url, data=json_data, headers=headers)
+    print(response)
+    
+
+           
 
 
 if __name__ == '__main__':
