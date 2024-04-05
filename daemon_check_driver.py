@@ -5,6 +5,7 @@ import os
 import subprocess
 import serial
 import json, requests
+import csv
 
 # Caminho do diretório
 directory_path = '/home/pi/.driver_analytics/logs/current/'
@@ -91,6 +92,15 @@ def check_internet():
         # Tente fazer uma conexão com um servidor remoto (por exemplo, o Google)
         socket.create_connection(("www.google.com", 80))
         return color(' ON ','green')
+    except OSError:
+        return color(' OFF ','red')
+
+
+def check_ip_connectivity(ip_address):
+    try:
+        # Tente fazer uma conexão com o IP fornecido na porta 80 (HTTP)
+        socket.create_connection((ip_address, 80))
+        return color(' ON ','green') # Supondo que 'color()' é uma função que formata a saída com cores
     except OSError:
         return color(' OFF ','red')
  
@@ -516,32 +526,32 @@ def postChekingHealth(urlbase, url, idVehicle, token):
 def main():
     #log_file_path = f'/home/pi/.monitor/logs/current/{daemon_name}.log'
     log_file_path = '/var/log/checking_health.log'
+    filename = "/home/pi/.driver_analytics/logs/driver_analytics_health.csv"
     desired_size_bytes = 2 * 1024 * 1024
+    ip_extra="10.0.89.11"
     #clear_log_file(log_file_path)  # Apaga o conteúdo do arquivo de log ao iniciar
-    #while True:
+    current_time = time.strftime('%Y-%m-%d %H:%M:%S')
+    total_size,free_size = get_machine_storage()
+    fix, sig_str, sat_num = chk_gps3()
+    detected,available = check_camera_status()
+    conncetion_chk = check_internet()
+    connect_ip= check_ip_connectivity(ip_extra)
+    Process_modem = chk_dial_modem()
+    imu = imu_check()
+    signal = modem_signal()
+    status = modem_status()
+    swapa = swap_memory()
+    cpu = usage_cpu()
+    interface_e = chk_ethernet_interface()
+    interface_wlan = chk_wlan_interface()
+    Lte = chk_ttyLTE()
+    Ard = chk_ttyARD()
+    temperature= temp_system()
+    macmac=get_mac()
     with open(log_file_path, 'a') as file:
-        current_time = time.strftime('%Y-%m-%d %H:%M:%S')
-        total_size,free_size = get_machine_storage()
-        fix, sig_str, sat_num = chk_gps3()
-        # status_camera = check_camera_status()
-        detected,available = check_camera_status()
-        conncetion_chk = check_internet()
-        Process_modem = chk_dial_modem()
-        imu = imu_check()
-        # read_sim = get_ccid()
-        signal = modem_signal()
-        status = modem_status()
-        swapa = swap_memory()
-        cpu = usage_cpu()
-        interface_e = chk_ethernet_interface()
-        interface_wlan = chk_wlan_interface()
-        Lte = chk_ttyLTE()
-        Ard = chk_ttyARD()
-        temperature= temp_system()
-        macmac=get_mac()
         # file.write(f'\n\033[1;34;40m---Driver_analytics Health---\033[0m\nDate:\n\t- {current_time} \n'
         file.write(f'\n---Driver_analytics Health---\nDate:\n\t- {current_time} \n'
-                    f'Connection Analysis:\n\t- connection internet: {conncetion_chk}\n\t- Modem IP:{Process_modem}\n\t- Signal: {signal} \n\t- Status: {status} \n'
+                    f'Connection Analysis:\n\t- connection internet: {conncetion_chk}\n\t- Modem IP:{Process_modem}\n\t- Signal: {signal} \n\t- Status: {status} \n\t conection extra: {connect_ip} \n'
                     f'SD Card Analysis:\n\t- Expanded:{total_size}\n\t- Free disk:{free_size} \n'
                     f'GPS Analysis:\n\t- GPS Fix: {fix}\n\t- Signal Strength: {sig_str}  \n\t- Avaible Satellites: {sat_num} \n'
                     f'Camera Analysis:\n\t- Detected: {detected}\n\t- Available: {available}\n'
@@ -550,44 +560,57 @@ def main():
                     f'- USB LTE: {Lte} \n\t- USB ARD: {Ard}\n\t- Temperature: {temperature}\n\t- Mac Adress: {macmac}\n')
         file.truncate(desired_size_bytes)
         
-    data = {
-        "date": current_time,
-        "connection_analysis":
-         {
-            "connection_internet": conncetion_chk,
-            "Modem_IP": Process_modem,
-            "Signal": signal,
-            "Status": status
-        },
-        "SD_Card_Analysis": {
-            "Expanded": total_size,
-            "Free_disk": free_size
-        },
-        "GPS_Analysis": {
-            "GPS_Fix": fix,
-            "Signal_Strength": sig_str,
-            "Avaible_Satellites": sat_num
-        },
-        "Camera_Analysis": {
-            "Detected": detected,
-            "Available": available
-        },
-        "IMU_Analysis": {
-            "Active": imu
-        },
-        "System_Analysis": {
-            "Swap_usage": swapa,
-            "CPU_Usage": cpu,
-            "ETH0_Interface": interface_e,
-            "WLAN_Interface": interface_wlan,
-            "USB_LTE": Lte,
-            "USB_ARD": Ard,
-            "Temperature": temperature,
-            "Mac_Adress": macmac
-        }   
+    # data = {
+    #     "date": current_time,
+    #     "connection_analysis":
+    #      {
+    #         "connection_internet": conncetion_chk,
+    #         "Modem_IP": Process_modem,
+    #         "Signal": signal,
+    #         "Status": status
+    #     },
+    #     "SD_Card_Analysis": {
+    #         "Expanded": total_size,
+    #         "Free_disk": free_size
+    #     },
+    #     "GPS_Analysis": {
+    #         "GPS_Fix": fix,
+    #         "Signal_Strength": sig_str,
+    #         "Avaible_Satellites": sat_num
+    #     },
+    #     "Camera_Analysis": {
+    #         "Detected": detected,
+    #         "Available": available
+    #     },
+    #     "IMU_Analysis": {
+    #         "Active": imu
+    #     },
+    #     "System_Analysis": {
+    #         "Swap_usage": swapa,
+    #         "CPU_Usage": cpu,
+    #         "ETH0_Interface": interface_e,
+    #         "WLAN_Interface": interface_wlan,
+    #         "USB_LTE": Lte,
+    #         "USB_ARD": Ard,
+    #         "Temperature": temperature,
+    #         "Mac_Adress": macmac
+    #     }   
         
-    }
-    #print(color(" Log gerado! ", "green"))
+    # }
+    data = [
+        ["Date:", current_time],
+        ["Connection Analysis:", "connection internet:", conncetion_chk, "Modem IP:", Process_modem, "Signal:", signal, "Status:", status, "conection extra:", connect_ip],
+        ["SD Card Analysis:", "Expanded:", total_size, "Free disk:", free_size],
+        ["GPS Analysis:", "GPS Fix:", fix, "Signal Strength:", sig_str, "Avaible Satellites:", sat_num],
+        ["Camera Analysis:", "Detected:", detected, "Available:", available],
+        ["IMU Analysis:", "Active:", imu],
+        ["System Analysis:", "Swap usage:", swapa, "CPU Usage:", cpu, "ETH0 Interface:", interface_e, "WLAN Interface:", interface_wlan,
+         "USB LTE:", Lte, "USB ARD:", Ard, "Temperature:", temperature, "Mac Adress:", macmac]
+    ]
+    with open(filename, mode='a', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerows(data)
+    
     json_data = json.dumps(data)
     print(json_data)
     headers = {'Content-Type': 'application/json'}
