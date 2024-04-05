@@ -449,10 +449,6 @@ def log(s, value=None):
 #função para fazer login na api driveranalytics
 def login(urlbase, url, user, password):
     global r
-
-
-    
-
     params =    {
                     'username': user,
                     'password': password
@@ -560,66 +556,66 @@ def main():
                     f'- USB LTE: {Lte} \n\t- USB ARD: {Ard}\n\t- Temperature: {temperature}\n\t- Mac Adress: {macmac}\n')
         file.truncate(desired_size_bytes)
         
-    # data = {
-    #     "date": current_time,
-    #     "connection_analysis":
-    #      {
-    #         "connection_internet": conncetion_chk,
-    #         "Modem_IP": Process_modem,
-    #         "Signal": signal,
-    #         "Status": status
-    #     },
-    #     "SD_Card_Analysis": {
-    #         "Expanded": total_size,
-    #         "Free_disk": free_size
-    #     },
-    #     "GPS_Analysis": {
-    #         "GPS_Fix": fix,
-    #         "Signal_Strength": sig_str,
-    #         "Avaible_Satellites": sat_num
-    #     },
-    #     "Camera_Analysis": {
-    #         "Detected": detected,
-    #         "Available": available
-    #     },
-    #     "IMU_Analysis": {
-    #         "Active": imu
-    #     },
-    #     "System_Analysis": {
-    #         "Swap_usage": swapa,
-    #         "CPU_Usage": cpu,
-    #         "ETH0_Interface": interface_e,
-    #         "WLAN_Interface": interface_wlan,
-    #         "USB_LTE": Lte,
-    #         "USB_ARD": Ard,
-    #         "Temperature": temperature,
-    #         "Mac_Adress": macmac
-    #     }   
+    data_jotason = {
+        "date": current_time,
+        "connection_analysis":
+         {
+            "connection_internet": conncetion_chk,
+            "Modem_IP": Process_modem,
+            "Signal": signal,
+            "Status": status,
+            "conection extra": connect_ip
+        },
+        "SD_Card_Analysis": {
+            "Expanded": total_size,
+            "Free_disk": free_size
+        },
+        "GPS_Analysis": {
+            "GPS_Fix": fix,
+            "Signal_Strength": sig_str,
+            "Avaible_Satellites": sat_num
+        },
+        "Camera_Analysis": {
+            "Detected": detected,
+            "Available": available
+        },
+        "IMU_Analysis": {
+            "Active": imu
+        },
+        "System_Analysis": {
+            "Swap_usage": swapa,
+            "CPU_Usage": cpu,
+            "ETH0_Interface": interface_e,
+            "WLAN_Interface": interface_wlan,
+            "USB_LTE": Lte,
+            "USB_ARD": Ard,
+            "Temperature": temperature,
+            "Mac_Adress": macmac
+        }   
         
-    # }
+    }
+    
     data = [
         ["Date:", current_time],
-        ["Connection Analysis:", "connection internet:", conncetion_chk, "Modem IP:", Process_modem, "Signal:", signal, "Status:", status, "conection extra:", connect_ip],
-        ["SD Card Analysis:", "Expanded:", total_size, "Free disk:", free_size],
-        ["GPS Analysis:", "GPS Fix:", fix, "Signal Strength:", sig_str, "Avaible Satellites:", sat_num],
-        ["Camera Analysis:", "Detected:", detected, "Available:", available],
-        ["IMU Analysis:", "Active:", imu],
-        ["System Analysis:", "Swap usage:", swapa, "CPU Usage:", cpu, "ETH0 Interface:", interface_e, "WLAN Interface:", interface_wlan,
+        ["connection internet:", conncetion_chk, "Modem IP:", Process_modem, "Signal:", signal, "Status:", status, "conection extra:", connect_ip],
+        ["Expanded:", total_size, "Free disk:", free_size],
+        ["GPS Fix:", fix, "Signal Strength:", sig_str, "Avaible Satellites:", sat_num],
+        ["Detected:", detected, "Available:", available],
+        ["Active:", imu],
+        ["Swap usage:", swapa, "CPU Usage:", cpu, "ETH0 Interface:", interface_e, "WLAN Interface:", interface_wlan,
          "USB LTE:", Lte, "USB ARD:", Ard, "Temperature:", temperature, "Mac Adress:", macmac]
     ]
     with open(filename, mode='a', newline='') as file:
         writer = csv.writer(file)
         writer.writerows(data)
     
-    json_data = json.dumps(data)
+    json_data= json.dumps(data_jotason)
     print(json_data)
     headers = {'Content-Type': 'application/json'}
-    url="https://0389-131-255-20-4.ngrok-free.app/heartbeat"
+    url="https://9a61-131-255-22-153.ngrok-free.app/heartbeat"
     response = requests.post(url, data=json_data, headers=headers)
     print(response)
-    
-
-           
+               
 
 
 if __name__ == '__main__':
