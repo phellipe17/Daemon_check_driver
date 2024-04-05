@@ -596,19 +596,46 @@ def main():
     }
     
     data = [
-        ["Date:", current_time],
-        ["connection internet:", conncetion_chk, "Modem IP:", Process_modem, "Signal:", signal, "Status:", status, "conection extra:", connect_ip],
-        ["Expanded:", total_size, "Free disk:", free_size],
-        ["GPS Fix:", fix, "Signal Strength:", sig_str, "Avaible Satellites:", sat_num],
-        ["Detected:", detected, "Available:", available],
-        ["Active:", imu],
-        ["Swap usage:", swapa, "CPU Usage:", cpu, "ETH0 Interface:", interface_e, "WLAN Interface:", interface_wlan,
-         "USB LTE:", Lte, "USB ARD:", Ard, "Temperature:", temperature, "Mac Adress:", macmac]
+        ["Date", current_time],
+        ["connection internet", conncetion_chk],
+        ["Modem IP", Process_modem], 
+        ["Signal", signal],
+        ["Status", status],
+        ["conection extra", connect_ip],
+        ["Expanded", total_size],
+        ["Free disk", free_size],
+        ["GPS Fix", fix], 
+        ["Signal Strength", sig_str],
+        ["Avaible Satellites", sat_num],
+        ["Detected", detected],
+        ["Available", available],
+        ["Active", imu],
+        ["Swap usage", swapa], 
+        ["CPU Usage", cpu], 
+        ["ETH0 Interface", interface_e],
+        ["WLAN Interface", interface_wlan],
+        ["USB LTE", Lte],
+        ["USB ARD", Ard], 
+        ["Temperature", temperature],
+        ["Mac Adress", macmac]
     ]
     with open(filename, mode='a', newline='') as file:
+   
+        if os.stat(filename).st_size == 0:
+            fieldnames = []
+            for att in data:
+                fieldnames.append(att[0])
+            writer = csv.DictWriter(file, fieldnames=fieldnames)
+            writer.writeheader()           
+
         writer = csv.writer(file)
-        writer.writerows(data)
-    
+        
+        stats = []
+        for val in data:
+            stats.append(f'{val[1]}')
+        
+        writer.writerow(stats)
+        
     json_data= json.dumps(data_jotason)
     print(json_data)
     headers = {'Content-Type': 'application/json'}
