@@ -562,7 +562,7 @@ def main():
     log_file_path = '/var/log/checking_health.log'
     filename = "/home/pi/.driver_analytics/logs/driver_analytics_health.csv"
     counter_ind=inicializar_contador()
-    desired_size_bytes = 2 * 1024 * 1024
+    # desired_size_bytes = 2 * 1024 * 1024
     ip_extra="10.0.89.11"
     #clear_log_file(log_file_path)  # Apaga o conteúdo do arquivo de log ao iniciar
     current_time = time.strftime('%Y-%m-%d %H:%M:%S')
@@ -593,7 +593,6 @@ def main():
                     f'IMU Analysis:\n\t- Active: {imu}\n'
                     f'System Analysis:\n\t- Swap usage: {swapa} \n\t- CPU Usage: {cpu} \n\t- ETH0 Interface: {interface_e} \n\t- WLAN Interface: {interface_wlan}\n\t'
                     f'- USB LTE: {Lte} \n\t- USB ARD: {Ard}\n\t- Temperature: {temperature}\n\t- Mac Adress: {macmac}\n')
-        file.truncate(desired_size_bytes)
         
     # data_jotason = {
     #     "date": current_time,
@@ -636,28 +635,28 @@ def main():
     
     data = [
         ["counter", counter_ind],
-        ["connection internet", conncetion_chk],
-        ["Modem IP", Process_modem], 
-        ["Signal", signal],
-        ["Status", status],
-        ["conection extra", connect_ip],
+        ["connection_internet", conncetion_chk],
+        ["Modem_IP", Process_modem], 
+        ["Signal_modem", signal],
+        ["Status_modem", status],
+        ["conection_extra", connect_ip],
         ["Expanded", total_size],
-        ["Free disk", free_size],
-        ["Size disk", size],
-        ["GPS Fix", fix], 
-        ["Signal Strength", sig_str],
-        ["Avaible Satellites", sat_num],
-        ["Detected", detected],
-        ["Available", available],
+        ["Free_disk", free_size],
+        ["Size_disk", size],
+        ["GPS_Fix", fix], 
+        ["Signal_Strength", sig_str],
+        ["Avaible_Satellites", sat_num],
+        ["Detected_camera", detected],
+        ["Available_camera", available],
         ["Active", imu],
-        ["Swap usage", swapa], 
-        ["CPU Usage", cpu], 
-        ["ETH0 Interface", interface_e],
-        ["WLAN Interface", interface_wlan],
-        ["USB LTE", Lte],
-        ["USB ARD", Ard], 
+        ["Swap_usage", swapa], 
+        ["CPU_Usage", cpu], 
+        ["ETH0_Interface", interface_e],
+        ["WLAN_Interface", interface_wlan],
+        ["USB-LTE", Lte],
+        ["USB_ARD", Ard], 
         ["Temperature", temperature],
-        ["Mac Adress", macmac.strip()]
+        ["Mac_Adress", macmac.strip()]
     ]
     with open(filename, mode='a', newline='') as file:
    
