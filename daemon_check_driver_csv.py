@@ -10,12 +10,13 @@ import csv
 # Caminho do diretório
 directory_path = '/home/pi/.driver_analytics/logs/current/'
 r = requests.session()
-DEBUG = True
+DEBUG = False
 
 #from daemonize import Daemonize
 daemon_name = 'chk_status'
 
 def color(msg, collor):
+    
     coloring=False #False para não imprimir com cor, True para sair com cor
     
     if coloring==False:
@@ -38,12 +39,13 @@ def run_bash_command(command):
 
 
 def imu_check():
+    log("Testando imu")
     command2 = 'i2cdetect -y 1 | grep -ia 68'
     result, error=run_bash_command(command2)
     if (result != ''):
-        return color(' ON ','green')
+        return color(' 1 ','green')
     else:
-        return color(' OFF ','red')
+        return color(' 0 ','red')
 
     # ---- Opcao 2 -----
     # bus_number = 1
@@ -88,47 +90,50 @@ def imu_check():
 # check_internet(): This function checks for internet connectivity by attempting to create a connection to 
 # www.google.com. It returns True if the connection is successful and False otherwise.
 def check_internet():
+    log("testando internet")
     try:
         # Tente fazer uma conexão com um servidor remoto (por exemplo, o Google)
         socket.create_connection(("www.google.com", 80))
-        return color(' ON ','green')
+        return color(' 1 ','green')
     except OSError:
-        return color(' OFF ','red')
+        return color(' 0 ','red')
 
 
 def check_ip_connectivity(ip_address):
+    log("testando conexao ip")
     try:
         # Tente fazer uma conexão com o IP fornecido na porta 80 (HTTP)
         socket.create_connection((ip_address, 80))
-        return color(' ON ','green') # Supondo que 'color()' é uma função que formata a saída com cores
+        return color(' 1 ','green') # Supondo que 'color()' é uma função que formata a saída com cores
     except OSError:
-        return color(' OFF ','red')
+        return color(' 0 ','red')
  
 # get_machine_storage(): This function calculates and returns the total and free storage space on the root filesystem. 
 # If the total storage is less than 10 GB, it attempts to expand the root filesystem and requests a reboot.
 def get_machine_storage():
+    log("teste size")
     total_size_status = ''
     free_size_status = ''
     result=os.statvfs('/')
     block_size=result.f_frsize
     total_blocks=result.f_blocks
     free_blocks=result.f_bfree
-    # giga=1024*1024*1024
-    giga=1000*1000*1000
+    giga=1024*1024*1024
+    # giga=1000*1000*1000
     total_size=total_blocks*block_size/giga
     free_size=free_blocks*block_size/giga
     total_size = round(total_size)
     free_size = round(free_size)
     if (total_size > 10):
-        total_size_status = color(' OK ','green')
+        total_size_status = color(' 1 ','green')
     else:
-        total_size_status = color(' NOK ','red')
+        total_size_status = color(' 0 ','red')
 
     if (free_size < 0.05 * total_size):
-        free_size_status = color(' NOK ','red')
+        free_size_status = color(' 0 ','red')
     else:
-        free_size_status = color(' OK ','green')
-    return total_size_status, free_size_status
+        free_size_status = color(' 1 ','green')
+    return total_size_status, free_size_status,total_size
 
 # clear_log_file(log_file_path): This function clears the contents of a log file specified by log_file_path.
 def clear_log_file(log_file_path):
@@ -161,6 +166,7 @@ def clear_log_file(log_file_path):
 #     return danger, phrase 
 
 def chk_gps3():
+    log("teste gps")
     gps_device_fd = "/dev/serial0"
     gps_device = os.open(gps_device_fd, os.O_RDWR)
     gps_data = ""
@@ -233,44 +239,49 @@ def chk_gps3():
     return fix, sig_str, sat_num
     
 def chk_dial_modem():
+    log("teste modem")
     modem_command = 'ip addr | grep -ia ppp0'
     result, error=run_bash_command(modem_command)
     if(result != ''):
-        return color(' ON ','green')
+        return color(' 1 ','green')
     else:
-        return color(' OFF ','red')
+        return color(' 0 ','red')
 
 def chk_wlan_interface():
+    log("teste wlan")
     wlan_command = 'ip addr show wlan0'
     result, error = run_bash_command(wlan_command)
     if 'UP' in result:
-        return color(' ON ','green')
+        return color(' 1 ','green')
     else:
-        return color(' OFF ','red')
+        return color(' 0 ','red')
 
 def chk_ethernet_interface():
+    log("teste ethernet")
     eth_command = 'ip addr show eth0'
     result, error = run_bash_command(eth_command)
     if 'UP' in result:
-        return color(' ON ','green')
+        return color(' 1 ','green')
     else:
-        return color(' OFF ','red')
+        return color(' 0 ','red')
 
 def chk_ttyLTE():
+    log("teste conexao modem")
     command = 'ls /dev/'
     result,error = run_bash_command(command)
     if 'ttyLTE' in result:
-        return color('Mounted','green')
+        return color('1','green')
     else:
-        return color('Unmouted','red')
+        return color('0','red')
 
 def chk_ttyARD():
+    log("teste display")
     command = 'ls /dev/'
     result,error = run_bash_command(command)
     if 'ttyARD' in result:
-        return color('Mounted','green')
+        return color('1','green')
     else:
-        return color('Unmouted','red')
+        return color('0','red')
 
 
 def send_serial_command(command):
@@ -306,30 +317,32 @@ def send_serial_command(command):
             ser.close()
 
 def modem_signal():
+    log("teste sinal modem")
     text_signal =b'AT+CSQ\r'
     result= send_serial_command(text_signal)
     result2= result.split("\n")[1].split(":")[1].strip()	    
     if len(result2)>0:
         signal_strength=float(result2.replace(',','.'))
         if(signal_strength==99):
-            return color('No signal','magenta')
+            return color('0','magenta')
         elif(signal_strength>=31):
-            return color(' Strong signal ','green')
+            return color(' 1 ','green')
         elif(signal_strength<31 and signal_strength>=2):
-            return color(' Medium signal ','yellow')
+            return color(' 1 ','yellow')
         elif(signal_strength<2 and  signal_strength>=0):
-            return color(' Low signal ','red')
+            return color(' 0 ','red')
     else:
         return 0
 
 def modem_status():
+    log("teste status modem")
     text_status =b'AT+CPAS\r'
     result = send_serial_command(text_status)
     result2 = result.split(":")[1].strip()
     if "ok" in result2.lower():
-        return color(' OK ','green')
+        return color(' 1 ','green')
     elif "error" in result2.lower():
-        return color(' NOK ','red')
+        return color(' 0 ','red')
     else:
         return "Undefined"
     
@@ -353,11 +366,12 @@ def get_ccid():
    
 #    inclusao de verificacao se camera está conectada e pronta para uso
 def check_camera_status():
+    log("teste camera")
     command_frame="tail -n10 /home/pi/.driver_analytics/logs/current/camera.log"
     result, error=run_bash_command(command_frame)
-    available=color(" YES ","green")
+    available=color(" 1 ","green")
     if "Error opening the camera" in result:
-        available = color(" NO ", "red")
+        available = color(" 0 ", "red")
     else:
         last_log_line=run_bash_command('tail -n2 /home/pi/.driver_analytics/logs/current/camera.log')
         data_hora_ultima_msg_str = str(last_log_line).split(']')[0].strip('[')[-19:]
@@ -365,12 +379,12 @@ def check_camera_status():
         # Calcular a diferença de tempo
         diferenca_tempo = time.time() - timestamp_ultima_msg
         if(diferenca_tempo>60):
-            available=color(" NO ","red")
+            available=color(" 0 ","red")
         #print("Diferença de tempo:", round(diferenca_tempo), "segundos")
 
     command = "vcgencmd get_camera"
     output, error = run_bash_command(command)
-    detected = color(" YES ", "green") if "detected=1" in output else color(" NO ", "red")
+    detected = color(" 1 ", "green") if "detected=1" in output else color(" 0 ", "red")
     
         
     return detected, available
@@ -392,7 +406,8 @@ def check_camera_status2():
     return detected, connected, available  
 
 def swap_memory():
-    command = "free -h | grep -iA 1 swap | tail -n 1 | awk '{printf \"%.2f%%\", ($3/$2)*100}'"
+    log("teste swap memoria")
+    command = "free -h | grep -iA 1 swap | tail -n 1 | awk '{printf \"%.2f\", ($3/$2)*100}'"
     output, error = run_bash_command(command)
     
     if error:
@@ -402,6 +417,7 @@ def swap_memory():
     
 
 def usage_cpu():
+    log("teste uso cpu")
     # command = "top -b -n 1 | awk '/%CPU/ {print 100 - $8"%"}'"
     command = "top -bn1 | grep '^%Cpu(s)' | awk '{print $8}'"                                                     
     output, error = run_bash_command(command)
@@ -519,15 +535,38 @@ def postChekingHealth(urlbase, url, idVehicle, token):
 
     return ret_status_code, response_json
 
+def ler_contador():
+    with open("/home/pi/.monitor/counter.txt", "r") as arquivo:
+        return int(arquivo.read().strip())
+
+def escrever_contador(contador):
+    with open("/home/pi/.monitor/counter.txt", "w") as arquivo:
+        arquivo.write(str(contador))
+    
+def incrementar_contador_e_usar():
+    contador = ler_contador()
+    contador += 1
+    # print("Contador atual:", contador)
+    escrever_contador(contador)
+
+def inicializar_contador():
+    if not os.path.exists("/home/pi/.monitor/counter.txt"):
+        with open("/home/pi/.monitor/counter.txt", "w") as arquivo:
+            arquivo.write("0")
+            return 0
+    else:
+        return ler_contador()    
+
 def main():
     #log_file_path = f'/home/pi/.monitor/logs/current/{daemon_name}.log'
     log_file_path = '/var/log/checking_health.log'
     filename = "/home/pi/.driver_analytics/logs/driver_analytics_health.csv"
+    counter_ind=inicializar_contador()
     desired_size_bytes = 2 * 1024 * 1024
     ip_extra="10.0.89.11"
     #clear_log_file(log_file_path)  # Apaga o conteúdo do arquivo de log ao iniciar
     current_time = time.strftime('%Y-%m-%d %H:%M:%S')
-    total_size,free_size = get_machine_storage()
+    total_size,free_size,size = get_machine_storage()
     fix, sig_str, sat_num = chk_gps3()
     detected,available = check_camera_status()
     conncetion_chk = check_internet()
@@ -556,47 +595,47 @@ def main():
                     f'- USB LTE: {Lte} \n\t- USB ARD: {Ard}\n\t- Temperature: {temperature}\n\t- Mac Adress: {macmac}\n')
         file.truncate(desired_size_bytes)
         
-    data_jotason = {
-        "date": current_time,
-        "connection_analysis":
-         {
-            "connection_internet": conncetion_chk,
-            "Modem_IP": Process_modem,
-            "Signal": signal,
-            "Status": status,
-            "conection extra": connect_ip
-        },
-        "SD_Card_Analysis": {
-            "Expanded": total_size,
-            "Free_disk": free_size
-        },
-        "GPS_Analysis": {
-            "GPS_Fix": fix,
-            "Signal_Strength": sig_str,
-            "Avaible_Satellites": sat_num
-        },
-        "Camera_Analysis": {
-            "Detected": detected,
-            "Available": available
-        },
-        "IMU_Analysis": {
-            "Active": imu
-        },
-        "System_Analysis": {
-            "Swap_usage": swapa,
-            "CPU_Usage": cpu,
-            "ETH0_Interface": interface_e,
-            "WLAN_Interface": interface_wlan,
-            "USB_LTE": Lte,
-            "USB_ARD": Ard,
-            "Temperature": temperature,
-            "Mac_Adress": macmac
-        }   
+    # data_jotason = {
+    #     "date": current_time,
+    #     "connection_analysis":
+    #      {
+    #         "connection_internet": conncetion_chk,
+    #         "Modem_IP": Process_modem,
+    #         "Signal": signal,
+    #         "Status": status,
+    #         "conection extra": connect_ip
+    #     },
+    #     "SD_Card_Analysis": {
+    #         "Expanded": total_size,
+    #         "Free_disk": free_size
+    #     },
+    #     "GPS_Analysis": {
+    #         "GPS_Fix": fix,
+    #         "Signal_Strength": sig_str,
+    #         "Avaible_Satellites": sat_num
+    #     },
+    #     "Camera_Analysis": {
+    #         "Detected": detected,
+    #         "Available": available
+    #     },
+    #     "IMU_Analysis": {
+    #         "Active": imu
+    #     },
+    #     "System_Analysis": {
+    #         "Swap_usage": swapa,
+    #         "CPU_Usage": cpu,
+    #         "ETH0_Interface": interface_e,
+    #         "WLAN_Interface": interface_wlan,
+    #         "USB_LTE": Lte,
+    #         "USB_ARD": Ard,
+    #         "Temperature": temperature,
+    #         "Mac_Adress": macmac
+    #     }   
         
-    }
+    # }
     
     data = [
-        ["Date", current_time],
+        ["counter", counter_ind],
         ["connection internet", conncetion_chk],
         ["Modem IP", Process_modem], 
         ["Signal", signal],
@@ -604,6 +643,7 @@ def main():
         ["conection extra", connect_ip],
         ["Expanded", total_size],
         ["Free disk", free_size],
+        ["Size disk", size],
         ["GPS Fix", fix], 
         ["Signal Strength", sig_str],
         ["Avaible Satellites", sat_num],
@@ -617,7 +657,7 @@ def main():
         ["USB LTE", Lte],
         ["USB ARD", Ard], 
         ["Temperature", temperature],
-        ["Mac Adress", macmac]
+        ["Mac Adress", macmac.strip()]
     ]
     with open(filename, mode='a', newline='') as file:
    
@@ -632,16 +672,17 @@ def main():
         
         stats = []
         for val in data:
-            stats.append(f'{val[1]}')
+            stats.append(val[1])
         
         writer.writerow(stats)
+    incrementar_contador_e_usar()
         
-    json_data= json.dumps(data_jotason)
-    print(json_data)
-    headers = {'Content-Type': 'application/json'}
-    url="https://9a61-131-255-22-153.ngrok-free.app/heartbeat"
-    response = requests.post(url, data=json_data, headers=headers)
-    print(response)
+    # json_data= json.dumps(data_jotason)
+    # print(json_data)
+    # headers = {'Content-Type': 'application/json'}
+    # url="https://9a61-131-255-22-153.ngrok-free.app/heartbeat"
+    # response = requests.post(url, data=json_data, headers=headers)
+    # print(response)
                
 
 

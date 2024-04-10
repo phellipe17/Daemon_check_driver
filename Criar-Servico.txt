@@ -12,7 +12,7 @@ Type=simple
 Restart=always
 RestartSec=300
 ExecStartPre=/bin/bash -c 'sudo truncate -s 0 /var/log/checking_health.log && sudo truncate -s 0 /var/log/checking_health.err'
-ExecStart=/usr/bin/sudo /usr/bin/python3 /home/pi/.monitor/daemon_check_driver.py
+ExecStart=/usr/bin/sudo /usr/bin/python3 /home/pi/.monitor/daemon_check_driver_csv.py
 StandardOutput=file:/var/log/checking_health.log
 StandardError=file:/var/log/checking_health.err
 
@@ -21,17 +21,25 @@ WantedBy=multi-user.target
 
 
 
--------------------------------------------------------------------
+-------------------create and edit file------------------------------------------------
 
 
 sudo nano /etc/systemd/system/checking_health.service
 //Create Archive
 
--------------------------------------------------------------------
+----------------------reload daemon services---------------------------------------------
 
 sudo systemctl daemon-reload
 //Reload deamon
 
--------------------------------------------------------------------
+-----------------------how to enable service--------------------------------------------
 
 sudo systemctl enable checking_health.service
+
+-----------------------how to start/stop/restart service-------------------------------------------------------------
+
+sudo service checking_health start
+
+sudo service checking_health stop
+
+sudo service checking_health restart
