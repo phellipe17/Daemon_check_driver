@@ -578,94 +578,94 @@ def main():
                     f'System Analysis:\n\t- Swap usage: {swapa} \n\t- CPU Usage: {cpu} \n\t- ETH0 Interface: {interface_e} \n\t- WLAN Interface: {interface_wlan}\n\t'
                     f'- USB LTE: {Lte} \n\t- USB ARD: {Ard}\n\t- Temperature: {temperature}\n\t- Mac Adress: {macmac}\n')
         
-    # data_jotason = {
-    #     "date": current_time,
-    #     "connection_analysis":
-    #      {
-    #         "connection_internet": conncetion_chk,
-    #         "Modem_IP": Process_modem,
-    #         "Signal": signal,
-    #         "Status": status,
-    #         "conection extra": connect_ip
-    #     },
-    #     "SD_Card_Analysis": {
-    #         "Expanded": total_size,
-    #         "Free_disk": free_size
-    #     },
-    #     "GPS_Analysis": {
-    #         "GPS_Fix": fix,
-    #         "Signal_Strength": sig_str,
-    #         "Avaible_Satellites": sat_num
-    #     },
-    #     "Camera_Analysis": {
-    #         "Detected": detected,
-    #         "Available": available
-    #     },
-    #     "IMU_Analysis": {
-    #         "Active": imu
-    #     },
-    #     "System_Analysis": {
-    #         "Swap_usage": swapa,
-    #         "CPU_Usage": cpu,
-    #         "ETH0_Interface": interface_e,
-    #         "WLAN_Interface": interface_wlan,
-    #         "USB_LTE": Lte,
-    #         "USB_ARD": Ard,
-    #         "Temperature": temperature,
-    #         "Mac_Adress": macmac
-    #     }   
+    data_jotason = {
+        "date": current_time,
+        "connection_analysis":
+         {
+            "connection_internet": conncetion_chk,
+            "Modem_IP": Process_modem,
+            "Signal": signal,
+            "Status": status,
+            "conection extra": connect_ip
+        },
+        "SD_Card_Analysis": {
+            "Expanded": total_size,
+            "Free_disk": free_size
+        },
+        "GPS_Analysis": {
+            "GPS_Fix": fix,
+            "Signal_Strength": sig_str,
+            "Avaible_Satellites": sat_num
+        },
+        "Camera_Analysis": {
+            "Detected": detected,
+            "Available": available
+        },
+        "IMU_Analysis": {
+            "Active": imu
+        },
+        "System_Analysis": {
+            "Swap_usage": swapa,
+            "CPU_Usage": cpu,
+            "ETH0_Interface": interface_e,
+            "WLAN_Interface": interface_wlan,
+            "USB_LTE": Lte,
+            "USB_ARD": Ard,
+            "Temperature": temperature,
+            "Mac_Adress": macmac
+        }   
         
-    # }
+    }
     
-    data = [
-        ["counter", counter_ind],
-        ["connection internet", conncetion_chk],
-        ["Modem IP", Process_modem], 
-        ["Signal", signal],
-        ["Status", status],
-        ["conection extra", connect_ip],
-        ["Expanded", total_size],
-        ["Free disk", free_size],
-        ["Size disk", size],
-        ["GPS Fix", fix], 
-        ["Signal Strength", sig_str],
-        ["Avaible Satellites", sat_num],
-        ["Detected", detected],
-        ["Available", available],
-        ["Active", imu],
-        ["Swap usage", swapa], 
-        ["CPU Usage", cpu], 
-        ["ETH0 Interface", interface_e],
-        ["WLAN Interface", interface_wlan],
-        ["USB LTE", Lte],
-        ["USB ARD", Ard], 
-        ["Temperature", temperature],
-        ["Mac Adress", macmac.strip()]
-    ]
-    with open(filename, mode='a', newline='') as file:
+    # data = [
+    #     ["counter", counter_ind],
+    #     ["connection internet", conncetion_chk],
+    #     ["Modem IP", Process_modem], 
+    #     ["Signal", signal],
+    #     ["Status", status],
+    #     ["conection extra", connect_ip],
+    #     ["Expanded", total_size],
+    #     ["Free disk", free_size],
+    #     ["Size disk", size],
+    #     ["GPS Fix", fix], 
+    #     ["Signal Strength", sig_str],
+    #     ["Avaible Satellites", sat_num],
+    #     ["Detected", detected],
+    #     ["Available", available],
+    #     ["Active", imu],
+    #     ["Swap usage", swapa], 
+    #     ["CPU Usage", cpu], 
+    #     ["ETH0 Interface", interface_e],
+    #     ["WLAN Interface", interface_wlan],
+    #     ["USB LTE", Lte],
+    #     ["USB ARD", Ard], 
+    #     ["Temperature", temperature],
+    #     ["Mac Adress", macmac.strip()]
+    # ]
+    # with open(filename, mode='a', newline='') as file:
    
-        if os.stat(filename).st_size == 0:
-            fieldnames = []
-            for att in data:
-                fieldnames.append(att[0])
-            writer = csv.DictWriter(file, fieldnames=fieldnames)
-            writer.writeheader()           
+    #     if os.stat(filename).st_size == 0:
+    #         fieldnames = []
+    #         for att in data:
+    #             fieldnames.append(att[0])
+    #         writer = csv.DictWriter(file, fieldnames=fieldnames)
+    #         writer.writeheader()           
 
-        writer = csv.writer(file)
+    #     writer = csv.writer(file)
         
-        stats = []
-        for val in data:
-            stats.append(val[1])
+    #     stats = []
+    #     for val in data:
+    #         stats.append(val[1])
         
-        writer.writerow(stats)
-    incrementar_contador_e_usar()
+    #     writer.writerow(stats)
+    # incrementar_contador_e_usar()
         
-    # json_data= json.dumps(data_jotason)
-    # print(json_data)
-    # headers = {'Content-Type': 'application/json'}
-    # url="https://9a61-131-255-22-153.ngrok-free.app/heartbeat"
-    # response = requests.post(url, data=json_data, headers=headers)
-    # print(response)
+    json_data= json.dumps(data_jotason)
+    print(json_data)
+    headers = {'Content-Type': 'application/json'}
+    url="https://9a61-131-255-22-153.ngrok-free.app/heartbeat"
+    response = requests.post(url, data=json_data, headers=headers)
+    print(response)
                
 
 

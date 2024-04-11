@@ -555,7 +555,26 @@ def inicializar_contador():
             arquivo.write("0")
             return 0
     else:
-        return ler_contador()    
+        return ler_contador()
+    
+def checking_ignition():
+    command="cat /dev/shm/IGNITION_IS_ON"
+    output, error = run_bash_command(command)
+    out=int(output)
+    return out
+
+def checking_mode():
+    command="cat /home/pi/.driver_analytics/mode | grep -ia always | tail -c 2"
+    output, error = run_bash_command(command)
+    print(output)
+    print(error)
+    if output == "":
+        out=0
+    else:
+        out=int(output)
+    print(out)
+    return out
+        
 
 def main():
     #log_file_path = f'/home/pi/.monitor/logs/current/{daemon_name}.log'
@@ -564,8 +583,15 @@ def main():
     counter_ind=inicializar_contador()
     # desired_size_bytes = 2 * 1024 * 1024
     ip_extra="10.0.89.11"
+    ip_interna="10.0.90.196"
+    ig = checking_ignition()
     #clear_log_file(log_file_path)  # Apaga o conteúdo do arquivo de log ao iniciar
     current_time = time.strftime('%Y-%m-%d %H:%M:%S')
+    if(ig):
+        connect_int = check_ip_connectivity(ip_interna)
+    else:
+        connect_int=0
+    modee=checking_mode()
     total_size,free_size,size = get_machine_storage()
     fix, sig_str, sat_num = chk_gps3()
     detected,available = check_camera_status()
@@ -583,6 +609,7 @@ def main():
     Ard = chk_ttyARD()
     temperature= temp_system()
     macmac=get_mac()
+    
     with open(log_file_path, 'a') as file:
         # file.write(f'\n\033[1;34;40m---Driver_analytics Health---\033[0m\nDate:\n\t- {current_time} \n'
         file.write(f'\n---Driver_analytics Health---\nDate:\n\t- {current_time} \n'
@@ -635,11 +662,14 @@ def main():
     
     data = [
         ["counter", counter_ind],
+        ["ignition", ig],
+        ["mode_aways_on", modee],
         ["connection_internet", conncetion_chk],
         ["Modem_IP", Process_modem], 
         ["Signal_modem", signal],
         ["Status_modem", status],
-        ["conection_extra", connect_ip],
+        ["connection_extra", connect_ip],
+        ["connection_int", connect_int ],
         ["Expanded", total_size],
         ["Free_disk", free_size],
         ["Size_disk", size],
