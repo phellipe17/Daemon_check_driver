@@ -1,11 +1,10 @@
 import time
 import socket
-#import psutil
 import os
 import subprocess
 import serial
 import json, requests
-import csv
+import sqlite3
 
 # Caminho do diretório
 directory_path = '/home/pi/.driver_analytics/logs/current/'
@@ -41,9 +40,9 @@ def imu_check():
     command2 = 'i2cdetect -y 1 | grep -ia 68'
     result, error=run_bash_command(command2)
     if (result != ''):
-        return color(' ON ','green')
+        return color(' 1 ','green')
     else:
-        return color(' OFF ','red')
+        return color(' 1 ','red')
 
     # ---- Opcao 2 -----
     # bus_number = 1
@@ -91,18 +90,18 @@ def check_internet():
     try:
         # Tente fazer uma conexão com um servidor remoto (por exemplo, o Google)
         socket.create_connection(("www.google.com", 80))
-        return color(' ON ','green')
+        return color(' 1 ','green')
     except OSError:
-        return color(' OFF ','red')
+        return color(' 0 ','red')
 
 
 def check_ip_connectivity(ip_address):
     try:
         # Tente fazer uma conexão com o IP fornecido na porta 80 (HTTP)
         socket.create_connection((ip_address, 80))
-        return color(' ON ','green') # Supondo que 'color()' é uma função que formata a saída com cores
+        return color(' 1 ','green') # Supondo que 'color()' é uma função que formata a saída com cores
     except OSError:
-        return color(' OFF ','red')
+        return color(' 0 ','red')
  
 # get_machine_storage(): This function calculates and returns the total and free storage space on the root filesystem. 
 # If the total storage is less than 10 GB, it attempts to expand the root filesystem and requests a reboot.
@@ -120,14 +119,14 @@ def get_machine_storage():
     total_size = round(total_size)
     free_size = round(free_size)
     if (total_size > 10):
-        total_size_status = color(' OK ','green')
+        total_size_status = color(' 1 ','green')
     else:
-        total_size_status = color(' NOK ','red')
+        total_size_status = color(' 0 ','red')
 
     if (free_size < 0.05 * total_size):
-        free_size_status = color(' NOK ','red')
+        free_size_status = color(' 0 ','red')
     else:
-        free_size_status = color(' OK ','green')
+        free_size_status = color(' 1 ','green')
     return total_size_status, free_size_status,total_size
 
 # clear_log_file(log_file_path): This function clears the contents of a log file specified by log_file_path.
@@ -236,41 +235,41 @@ def chk_dial_modem():
     modem_command = 'ip addr | grep -ia ppp0'
     result, error=run_bash_command(modem_command)
     if(result != ''):
-        return color(' ON ','green')
+        return color(' 1 ','green')
     else:
-        return color(' OFF ','red')
+        return color(' 0 ','red')
 
 def chk_wlan_interface():
     wlan_command = 'ip addr show wlan0'
     result, error = run_bash_command(wlan_command)
     if 'UP' in result:
-        return color(' ON ','green')
+        return color(' 1 ','green')
     else:
-        return color(' OFF ','red')
+        return color(' 0 ','red')
 
 def chk_ethernet_interface():
     eth_command = 'ip addr show eth0'
     result, error = run_bash_command(eth_command)
     if 'UP' in result:
-        return color(' ON ','green')
+        return color(' 1 ','green')
     else:
-        return color(' OFF ','red')
+        return color(' 0 ','red')
 
 def chk_ttyLTE():
     command = 'ls /dev/'
     result,error = run_bash_command(command)
     if 'ttyLTE' in result:
-        return color('Mounted','green')
+        return color('1','green')
     else:
-        return color('Unmouted','red')
+        return color('0','red')
 
 def chk_ttyARD():
     command = 'ls /dev/'
     result,error = run_bash_command(command)
     if 'ttyARD' in result:
-        return color('Mounted','green')
+        return color('1','green')
     else:
-        return color('Unmouted','red')
+        return color('0','red')
 
 
 def send_serial_command(command):
@@ -312,13 +311,13 @@ def modem_signal():
     if len(result2)>0:
         signal_strength=float(result2.replace(',','.'))
         if(signal_strength==99):
-            return color('No signal','magenta')
+            return color(' 0 ','magenta')
         elif(signal_strength>=31):
-            return color(' Strong signal ','green')
+            return color(' 1 ','green')
         elif(signal_strength<31 and signal_strength>=2):
-            return color(' Medium signal ','yellow')
+            return color(' 1 ','yellow')
         elif(signal_strength<2 and  signal_strength>=0):
-            return color(' Low signal ','red')
+            return color(' 0 ','red')
     else:
         return 0
 
@@ -327,9 +326,9 @@ def modem_status():
     result = send_serial_command(text_status)
     result2 = result.split(":")[1].strip()
     if "ok" in result2.lower():
-        return color(' OK ','green')
+        return color(' 1 ','green')
     elif "error" in result2.lower():
-        return color(' NOK ','red')
+        return color(' 0 ','red')
     else:
         return "Undefined"
     
@@ -355,9 +354,9 @@ def get_ccid():
 def check_camera_status():
     command_frame="tail -n10 /home/pi/.driver_analytics/logs/current/camera.log"
     result, error=run_bash_command(command_frame)
-    available=color(" YES ","green")
+    available=color(" 1 ","green")
     if "Error opening the camera" in result:
-        available = color(" NO ", "red")
+        available = color(" 0 ", "red")
     else:
         last_log_line=run_bash_command('tail -n2 /home/pi/.driver_analytics/logs/current/camera.log')
         data_hora_ultima_msg_str = str(last_log_line).split(']')[0].strip('[')[-19:]
@@ -365,12 +364,12 @@ def check_camera_status():
         # Calcular a diferença de tempo
         diferenca_tempo = time.time() - timestamp_ultima_msg
         if(diferenca_tempo>60):
-            available=color(" NO ","red")
+            available=color(" 0 ","red")
         #print("Diferença de tempo:", round(diferenca_tempo), "segundos")
 
     command = "vcgencmd get_camera"
     output, error = run_bash_command(command)
-    detected = color(" YES ", "green") if "detected=1" in output else color(" NO ", "red")
+    detected = color(" 1 ", "green") if "detected=1" in output else color(" 0 ", "red")
     
         
     return detected, available
@@ -539,17 +538,43 @@ def inicializar_contador():
             arquivo.write("0")
             return 0
     else:
-        return ler_contador()    
+        return ler_contador()
+
+def checking_ignition():
+    command="cat /dev/shm/IGNITION_IS_ON"
+    output, error = run_bash_command(command)
+    out=int(output)
+    return out
+
+def checking_mode():
+    command="cat /home/pi/.driver_analytics/mode | grep -ia always | tail -c 2"
+    output, error = run_bash_command(command)
+    # print(output)
+    # print(error)
+    if output == "":
+        out=0
+    else:
+        out=int(output)
+    # print(out)
+    return out
+
+
 
 def main():
     #log_file_path = f'/home/pi/.monitor/logs/current/{daemon_name}.log'
     log_file_path = '/var/log/checking_health.log'
-    filename = "/home/pi/.driver_analytics/logs/driver_analytics_health.csv"
+    # filename = "/home/pi/.driver_analytics/logs/driver_analytics_health.csv"
     counter_ind=inicializar_contador()
-    desired_size_bytes = 2 * 1024 * 1024
     ip_extra="10.0.89.11"
+    ip_interna="10.0.90.196"
+    ig = checking_ignition()
     #clear_log_file(log_file_path)  # Apaga o conteúdo do arquivo de log ao iniciar
     current_time = time.strftime('%Y-%m-%d %H:%M:%S')
+    if(ig):
+        connect_int = check_ip_connectivity(ip_interna)
+    else:
+        connect_int=0
+    modee=checking_mode()
     total_size,free_size,size = get_machine_storage()
     fix, sig_str, sat_num = chk_gps3()
     detected,available = check_camera_status()
@@ -567,44 +592,57 @@ def main():
     Ard = chk_ttyARD()
     temperature= temp_system()
     macmac=get_mac()
-    with open(log_file_path, 'a') as file:
-        # file.write(f'\n\033[1;34;40m---Driver_analytics Health---\033[0m\nDate:\n\t- {current_time} \n'
-        file.write(f'\n---Driver_analytics Health---\nDate:\n\t- {current_time} \n'
-                    f'Connection Analysis:\n\t- connection internet: {conncetion_chk}\n\t- Modem IP:{Process_modem}\n\t- Signal: {signal} \n\t- Status: {status} \n\t conection extra: {connect_ip} \n'
-                    f'SD Card Analysis:\n\t- Expanded:{total_size}\n\t- Free disk:{free_size} \n'
-                    f'GPS Analysis:\n\t- GPS Fix: {fix}\n\t- Signal Strength: {sig_str}  \n\t- Avaible Satellites: {sat_num} \n'
-                    f'Camera Analysis:\n\t- Detected: {detected}\n\t- Available: {available}\n'
-                    f'IMU Analysis:\n\t- Active: {imu}\n'
-                    f'System Analysis:\n\t- Swap usage: {swapa} \n\t- CPU Usage: {cpu} \n\t- ETH0 Interface: {interface_e} \n\t- WLAN Interface: {interface_wlan}\n\t'
-                    f'- USB LTE: {Lte} \n\t- USB ARD: {Ard}\n\t- Temperature: {temperature}\n\t- Mac Adress: {macmac}\n')
-        
+    # with open(log_file_path, 'a') as file:
+    #     # file.write(f'\n\033[1;34;40m---Driver_analytics Health---\033[0m\nDate:\n\t- {current_time} \n'
+    #     file.write(f'\n---Driver_analytics Health---\nDate:\n\t- {current_time} \n'
+    #                 f'Connection Analysis:\n\t- connection internet: {conncetion_chk}\n\t- Modem IP:{Process_modem}\n\t- Signal: {signal} \n\t- Status: {status} \n\t conection extra: {connect_ip} \n'
+    #                 f'SD Card Analysis:\n\t- Expanded:{total_size}\n\t- Free disk:{free_size} \n'
+    #                 f'GPS Analysis:\n\t- GPS Fix: {fix}\n\t- Signal Strength: {sig_str}  \n\t- Avaible Satellites: {sat_num} \n'
+    #                 f'Camera Analysis:\n\t- Detected: {detected}\n\t- Available: {available}\n'
+    #                 f'IMU Analysis:\n\t- Active: {imu}\n'
+    #                 f'System Analysis:\n\t- Swap usage: {swapa} \n\t- CPU Usage: {cpu} \n\t- ETH0 Interface: {interface_e} \n\t- WLAN Interface: {interface_wlan}\n\t'
+    #                 f'- USB LTE: {Lte} \n\t- USB ARD: {Ard}\n\t- Temperature: {temperature}\n\t- Mac Adress: {macmac}\n')
+    
+    #connect to db
+    conn = sqlite3.connect('/home/pi/.driver_analytics/database/check_health.db')
+
+    cursor=conn.cursor()
+
     data_jotason = {
-        "date": current_time,
+        "Counter": counter_ind,
         "connection_analysis":
          {
             "connection_internet": conncetion_chk,
             "Modem_IP": Process_modem,
             "Signal": signal,
             "Status": status,
-            "conection extra": connect_ip
+            "connection_extra": connect_ip,
+            "connection_interna": connect_int
         },
-        "SD_Card_Analysis": {
-            "Expanded": total_size,
-            "Free_disk": free_size
+        "SD_Card_Analysis": 
+        {
+            "Expanded_sd": total_size,
+            "Free_disk": free_size,
+            "Total_size": size
         },
-        "GPS_Analysis": {
+        "GPS_Analysis": 
+        {
             "GPS_Fix": fix,
             "Signal_Strength": sig_str,
             "Avaible_Satellites": sat_num
         },
-        "Camera_Analysis": {
-            "Detected": detected,
-            "Available": available
+        "Camera_Analysis": 
+        {
+            "Detected_camera": detected,
+            "Available_camera": available
         },
-        "IMU_Analysis": {
-            "Active": imu
+        "IMU_Analysis": 
+        {
+            "Active_imu": imu
         },
-        "System_Analysis": {
+        "System_Analysis": 
+        {
+            "Mode_always_on": modee,
             "Swap_usage": swapa,
             "CPU_Usage": cpu,
             "ETH0_Interface": interface_e,
@@ -612,58 +650,15 @@ def main():
             "USB_LTE": Lte,
             "USB_ARD": Ard,
             "Temperature": temperature,
-            "Mac_Adress": macmac
+            "Mac_Adress": macmac.strip()
         }   
         
     }
-    
-    # data = [
-    #     ["counter", counter_ind],
-    #     ["connection internet", conncetion_chk],
-    #     ["Modem IP", Process_modem], 
-    #     ["Signal", signal],
-    #     ["Status", status],
-    #     ["conection extra", connect_ip],
-    #     ["Expanded", total_size],
-    #     ["Free disk", free_size],
-    #     ["Size disk", size],
-    #     ["GPS Fix", fix], 
-    #     ["Signal Strength", sig_str],
-    #     ["Avaible Satellites", sat_num],
-    #     ["Detected", detected],
-    #     ["Available", available],
-    #     ["Active", imu],
-    #     ["Swap usage", swapa], 
-    #     ["CPU Usage", cpu], 
-    #     ["ETH0 Interface", interface_e],
-    #     ["WLAN Interface", interface_wlan],
-    #     ["USB LTE", Lte],
-    #     ["USB ARD", Ard], 
-    #     ["Temperature", temperature],
-    #     ["Mac Adress", macmac.strip()]
-    # ]
-    # with open(filename, mode='a', newline='') as file:
-   
-    #     if os.stat(filename).st_size == 0:
-    #         fieldnames = []
-    #         for att in data:
-    #             fieldnames.append(att[0])
-    #         writer = csv.DictWriter(file, fieldnames=fieldnames)
-    #         writer.writeheader()           
-
-    #     writer = csv.writer(file)
-        
-    #     stats = []
-    #     for val in data:
-    #         stats.append(val[1])
-        
-    #     writer.writerow(stats)
-    # incrementar_contador_e_usar()
         
     json_data= json.dumps(data_jotason)
-    print(json_data)
+    # print(json_data)
     headers = {'Content-Type': 'application/json'}
-    url="https://9a61-131-255-22-153.ngrok-free.app/heartbeat"
+    url="https://523a-164-163-204-193.ngrok-free.app/heartbeat"
     response = requests.post(url, data=json_data, headers=headers)
     print(response)
                
