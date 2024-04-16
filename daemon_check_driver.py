@@ -558,6 +558,54 @@ def checking_mode():
     # print(out)
     return out
 
+def current_time_pi():
+    command="date +'%Y/%m/%d %H:%M:%S'"
+    output,error = run_bash_command(command)
+    return output
+
+def verificar_e_criar_tabela(cursor):
+    cursor.execute(''' 
+        CREATE TABLE IF NOT EXISTS health_device (
+            id INTEGER PRIMARY KEY AUTO_INCREMENT,
+            Data TEXT,
+            ignition INTEGER,
+            mode_aways_on INTEGER,
+            connection_internet INTEGER,
+            Modem_IP INTEGER,
+            Signal_modem INTEGER,
+            Status_modem INTEGER,
+            connection_extra INTEGER,
+            connection_int INTEGER,
+            Expanded INTEGER,
+            Free_disk INTEGER,
+            Size_disk INTEGER,
+            GPS_Fix TEXT,
+            Signal_Strength REAL,
+            Avaible_Satellites INTEGER,
+            Detected_camera INTEGER,
+            Available_camera INTEGER,
+            Active INTEGER,
+            Swap_usage REAL,
+            CPU_Usage TEXT,
+            ETH0_Interface INTEGER,
+            WLAN_Interface INTEGER,
+            USB_LTE INTEGER,
+            USB_ARD INTEGER,
+            Temperature TEXT,
+            Mac_Address TEXT
+        )
+    ''')
+
+def adicionar_dados(cursor, data):
+    cursor.execute('''
+        INSERT INTO health_device 
+        (Data, ignition, mode_aways_on, connection_internet, Modem_IP, Signal_modem, Status_modem, connection_extra, 
+        connection_int, Expanded, Free_disk, Size_disk, GPS_Fix, Signal_Strength, Avaible_Satellites, Detected_camera, 
+        Available_camera, Active, Swap_usage, CPU_Usage, ETH0_Interface, WLAN_Interface, USB_LTE, USB_ARD, Temperature, 
+        Mac_Address) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', data)
+
 
 
 def main():
@@ -569,7 +617,7 @@ def main():
     ip_interna="10.0.90.196"
     ig = checking_ignition()
     #clear_log_file(log_file_path)  # Apaga o conteúdo do arquivo de log ao iniciar
-    current_time = time.strftime('%Y-%m-%d %H:%M:%S')
+    current_time = current_time_pi()
     if(ig):
         connect_int = check_ip_connectivity(ip_interna)
     else:
@@ -603,64 +651,53 @@ def main():
     #                 f'System Analysis:\n\t- Swap usage: {swapa} \n\t- CPU Usage: {cpu} \n\t- ETH0 Interface: {interface_e} \n\t- WLAN Interface: {interface_wlan}\n\t'
     #                 f'- USB LTE: {Lte} \n\t- USB ARD: {Ard}\n\t- Temperature: {temperature}\n\t- Mac Adress: {macmac}\n')
     
+    
+    
+    data_values =[
+        current_time,
+        ig, 
+        modee,
+        conncetion_chk,
+        Process_modem, 
+        signal,
+        status,
+        connect_ip,
+        connect_int,
+        total_size,
+        free_size,
+        size,
+        fix, 
+        sig_str,
+        sat_num,
+        detected,
+        available,
+        imu,
+        swapa, 
+        cpu, 
+        interface_e,
+        interface_wlan,
+        Lte,
+        Ard, 
+        temperature,
+        macmac.strip()
+    ]
+    
     #connect to db
-    conn = sqlite3.connect('/home/pi/.driver_analytics/database/check_health.db')
-
+    conn = sqlite3.connect('/home/pi/.driver_analytics/database/check_health.db',mode="w")
     cursor=conn.cursor()
-
-    data_jotason = {
-        "Counter": counter_ind,
-        "connection_analysis":
-         {
-            "connection_internet": conncetion_chk,
-            "Modem_IP": Process_modem,
-            "Signal": signal,
-            "Status": status,
-            "connection_extra": connect_ip,
-            "connection_interna": connect_int
-        },
-        "SD_Card_Analysis": 
-        {
-            "Expanded_sd": total_size,
-            "Free_disk": free_size,
-            "Total_size": size
-        },
-        "GPS_Analysis": 
-        {
-            "GPS_Fix": fix,
-            "Signal_Strength": sig_str,
-            "Avaible_Satellites": sat_num
-        },
-        "Camera_Analysis": 
-        {
-            "Detected_camera": detected,
-            "Available_camera": available
-        },
-        "IMU_Analysis": 
-        {
-            "Active_imu": imu
-        },
-        "System_Analysis": 
-        {
-            "Mode_always_on": modee,
-            "Swap_usage": swapa,
-            "CPU_Usage": cpu,
-            "ETH0_Interface": interface_e,
-            "WLAN_Interface": interface_wlan,
-            "USB_LTE": Lte,
-            "USB_ARD": Ard,
-            "Temperature": temperature,
-            "Mac_Adress": macmac.strip()
-        }   
+    verificar_e_criar_tabela(cursor)
+    adicionar_dados(cursor,data_values)
+    
+    
+    cursor.close()
+    conn.close()
         
-    }
-        
-    json_data= json.dumps(data_jotason)
-    # print(json_data)
-    headers = {'Content-Type': 'application/json'}
-    url="https://523a-164-163-204-193.ngrok-free.app/heartbeat"
-    response = requests.post(url, data=json_data, headers=headers)
-    print(response)
+    # json_data= json.dumps(data)
+    # # print(json_data)
+    # headers = {'Content-Type': 'application/json'}
+    # url="https://523a-164-163-204-193.ngrok-free.app/heartbeat"
+    # response = requests.post(url, data=json_data, headers=headers)
+    # print(response)
                
 
 

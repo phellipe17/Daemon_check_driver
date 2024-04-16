@@ -35,7 +35,7 @@ def color(msg, collor):
 def run_bash_command(command):
     process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     output, error = process.communicate()
-    return output.decode(), error.decode()
+    return output.decode().strip(), error.decode().strip()
 
 
 def imu_check():
@@ -566,14 +566,19 @@ def checking_ignition():
 def checking_mode():
     command="cat /home/pi/.driver_analytics/mode | grep -ia always | tail -c 2"
     output, error = run_bash_command(command)
-    print(output)
-    print(error)
+    # print(output)
+    # print(error)
     if output == "":
         out=0
     else:
         out=int(output)
-    print(out)
+    # print(out)
     return out
+
+def current_time_pi():
+    command="date +'%Y/%m/%d %H:%M:%S'"
+    output,error = run_bash_command(command)
+    return output
         
 
 def main():
@@ -586,7 +591,8 @@ def main():
     ip_interna="10.0.90.196"
     ig = checking_ignition()
     #clear_log_file(log_file_path)  # Apaga o conteúdo do arquivo de log ao iniciar
-    current_time = time.strftime('%Y-%m-%d %H:%M:%S')
+    # current_time = time.strftime('%Y-%m-%d %H:%M:%S')
+    current_time2=current_time_pi()
     if(ig):
         connect_int = check_ip_connectivity(ip_interna)
     else:
@@ -612,7 +618,7 @@ def main():
     
     with open(log_file_path, 'a') as file:
         # file.write(f'\n\033[1;34;40m---Driver_analytics Health---\033[0m\nDate:\n\t- {current_time} \n'
-        file.write(f'\n---Driver_analytics Health---\nDate:\n\t- {current_time} \n'
+        file.write(f'\n---Driver_analytics Health---\nDate:\n\t- {current_time2} \n'
                     f'Connection Analysis:\n\t- connection internet: {conncetion_chk}\n\t- Modem IP:{Process_modem}\n\t- Signal: {signal} \n\t- Status: {status} \n\t conection extra: {connect_ip} \n'
                     f'SD Card Analysis:\n\t- Expanded:{total_size}\n\t- Free disk:{free_size} \n'
                     f'GPS Analysis:\n\t- GPS Fix: {fix}\n\t- Signal Strength: {sig_str}  \n\t- Avaible Satellites: {sat_num} \n'
@@ -662,6 +668,7 @@ def main():
     
     data = [
         ["counter", counter_ind],
+        ["Data", current_time2 ],
         ["ignition", ig],
         ["mode_aways_on", modee],
         ["connection_internet", conncetion_chk],
