@@ -5,9 +5,11 @@ import subprocess
 import serial
 import json, requests
 import sqlite3
+import threading
 
 # Caminho do diretório
 directory_path = '/home/pi/.driver_analytics/logs/current/'
+db_lock = threading.Lock()
 r = requests.session()
 DEBUG = True
 
@@ -563,53 +565,109 @@ def current_time_pi():
     output,error = run_bash_command(command)
     return output
 
-def verificar_e_criar_tabela(cursor):
+def verificar_e_criar_tabela():
+    conn = sqlite3.connect('/home/pi/.driver_analytics/database/check_health.db')
+    cursor=conn.cursor() 
     cursor.execute(''' 
         CREATE TABLE IF NOT EXISTS health_device (
-            id INTEGER PRIMARY KEY AUTO_INCREMENT,
-            Data TEXT,
-            ignition INTEGER,
-            mode_aways_on INTEGER,
-            connection_internet INTEGER,
-            Modem_IP INTEGER,
-            Signal_modem INTEGER,
-            Status_modem INTEGER,
-            connection_extra INTEGER,
-            connection_int INTEGER,
-            Expanded INTEGER,
-            Free_disk INTEGER,
-            Size_disk INTEGER,
-            GPS_Fix TEXT,
-            Signal_Strength REAL,
-            Avaible_Satellites INTEGER,
-            Detected_camera INTEGER,
-            Available_camera INTEGER,
-            Active INTEGER,
-            Swap_usage REAL,
-            CPU_Usage TEXT,
-            ETH0_Interface INTEGER,
-            WLAN_Interface INTEGER,
-            USB_LTE INTEGER,
-            USB_ARD INTEGER,
-            Temperature TEXT,
-            Mac_Address TEXT
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            Data TEXT NOT NULL,
+            ignition TEXT NOT NULL,
+            mode_aways_on TEXT NOT NULL,
+            connection_internet TEXT NOT NULL,
+            Modem_IP TEXT NOT NULL,
+            Signal_modem TEXT NOT NULL,
+            Status_modem TEXT NOT NULL,
+            connection_extra TEXT NOT NULL,
+            connection_int TEXT NOT NULL,
+            Expanded TEXT NOT NULL,
+            Free_disk TEXT NOT NULL,
+            Size_disk TEXT NOT NULL,
+            GPS_Fix TEXT NOT NULL,
+            Signal_Strength TEXT NOT NULL,
+            Avaible_Satellites TEXT NOT NULL,
+            Detected_camera TEXT NOT NULL,
+            Available_camera TEXT NOT NULL,
+            Active TEXT NOT NULL,
+            Swap_usage TEXT NOT NULL,
+            CPU_Usage TEXT NOT NULL,
+            ETH0_Interface TEXT NOT NULL,
+            WLAN_Interface TEXT NOT NULL,
+            USB_LTE TEXT NOT NULL,
+            USB_ARD TEXT NOT NULL,
+            Temperature TEXT NOT NULL,
+            Mac_Address TEXT NOT NULL
         )
     ''')
+    conn.close()
+    
 
-def adicionar_dados(cursor, data):
-    cursor.execute('''
-        INSERT INTO health_device 
-        (Data, ignition, mode_aways_on, connection_internet, Modem_IP, Signal_modem, Status_modem, connection_extra, 
-        connection_int, Expanded, Free_disk, Size_disk, GPS_Fix, Signal_Strength, Avaible_Satellites, Detected_camera, 
-        Available_camera, Active, Swap_usage, CPU_Usage, ETH0_Interface, WLAN_Interface, USB_LTE, USB_ARD, Temperature, 
-        Mac_Address) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', data)
+def adicionar_dados(data):
+    with db_lock:
+        conn = sqlite3.connect('/home/pi/.driver_analytics/database/check_health.db')
+        cursor=conn.cursor() 
+        cursor.execute(f"INSERT INTO health_device VALUES {data}")
+        conn.commit()
+        conn.close()
 
+def ler_dados():
+    with db_lock:
+        conn = sqlite3.connect('/home/pi/.driver_analytics/database/check_health.db')
+        cursor=conn.cursor() 
+        cursor.execute("SELECT * FROM health_devices")
+        dados = cursor.fetchall()
+        conn.close()
+        return dados
 
+def enviar_para_api(url, dados):
+    rows=transformar_em_json(dados)
+    headers = {'Content-Type': 'application/json'}
+    for linha in rows:
+        json_data = json.dumps(linha)
+        response = requests.post(url, data=json_data, headers=headers)
+        print(response)
+
+def transformar_em_json(dados):
+    linhas = dados.split('\n')
+    resultado = []
+    for linha in linhas:
+        if linha.strip() != '':
+            valores = linha.split('|')
+            json_linha = {
+                "id": valores[0],
+                "data": valores[1],
+                "ignition": valores[2],
+                "mode_aways_on": valores[3],
+                "connection_internet": valores[4],
+                "Modem_IP": valores[5],
+                "Signal_modem": valores[6],
+                "Status_modem": valores[7],
+                "connection_extra": valores[8],
+                "connection_int": valores[9],
+                "Expanded": valores[10],
+                "Free_disk": valores[11],
+                "Size_disk": valores[12],
+                "GPS_Fix": valores[13],
+                "Signal_Strength": valores[14],
+                "Avaible_Satellites": valores[15],
+                "Detected_camera": valores[16],
+                "Available_camera": valores[17],
+                "Active": valores[18],
+                "Swap_usage": valores[19],
+                "CPU_Usage": valores[20],
+                "ETH0_Interface": valores[21],
+                "WLAN_Interface": valores[22],
+                "USB_LTE": valores[23],
+                "USB_ARD": valores[24],
+                "Temperature": valores[25],
+                "Mac_Address": valores[26]
+            }
+            resultado.append(json_linha)
+    return resultado
 
 def main():
-    #log_file_path = f'/home/pi/.monitor/logs/current/{daemon_name}.log'
+    
+    url="https://523a-164-163-204-193.ngrok-free.app/heartbeat"
     log_file_path = '/var/log/checking_health.log'
     # filename = "/home/pi/.driver_analytics/logs/driver_analytics_health.csv"
     counter_ind=inicializar_contador()
@@ -653,7 +711,7 @@ def main():
     
     
     
-    data_values =[
+    data_values =(
         current_time,
         ig, 
         modee,
@@ -680,24 +738,22 @@ def main():
         Ard, 
         temperature,
         macmac.strip()
-    ]
-    
-    #connect to db
-    conn = sqlite3.connect('/home/pi/.driver_analytics/database/check_health.db',mode="w")
-    cursor=conn.cursor()
-    verificar_e_criar_tabela(cursor)
-    adicionar_dados(cursor,data_values)
+    )
     
     
-    cursor.close()
-    conn.close()
+    verificar_e_criar_tabela()
+    adicionar_dados(data_values)
+    if conncetion_chk:
+        all_data=ler_dados()
+        enviar_para_api(url,data_values)
+    
+    
         
-    # json_data= json.dumps(data)
-    # # print(json_data)
-    # headers = {'Content-Type': 'application/json'}
-    # url="https://523a-164-163-204-193.ngrok-free.app/heartbeat"
-    # response = requests.post(url, data=json_data, headers=headers)
-    # print(response)
+    json_data= json.dumps(data)
+    headers = {'Content-Type': 'application/json'}
+    url="https://523a-164-163-204-193.ngrok-free.app/heartbeat"
+    response = requests.post(url, data=json_data, headers=headers)
+    print(response)
                
 
 
