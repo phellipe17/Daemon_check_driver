@@ -617,6 +617,7 @@ def adicionar_dados(data):
 
 def ler_dados():    
         conn = sqlite3.connect('/home/pi/.driver_analytics/database/check_health.db')
+        print("entrou no conn de ler dados")
         cursor=conn.cursor() 
         dados = cursor.execute("SELECT * FROM health_device").fetchall()
         conn.close()
@@ -626,13 +627,19 @@ def enviar_para_api(url):
     response=''
     with db_lock:
         dados=ler_dados()
-        rows=transformar_em_json(dados)
-        headers = {'Content-Type': 'application/json'}
-        for linha in rows:
-            json_data = json.dumps(linha)
-            response = requests.post(url, data=json_data, headers=headers)
-        print(response)
-           
+        if len(dados) != 0: 
+            rows=transformar_em_json(dados)
+            headers = {'Content-Type': 'application/json'}
+            for linha in rows:
+                json_data = json.dumps(linha)
+                response = requests.post(url, data=json_data, headers=headers)
+            print(response)
+            if 200 == response.status_code:
+                conn = sqlite3.connect('/home/pi/.driver_analytics/database/check_health.db')
+                print("entrou no conn de deletar")
+                cursor=conn.cursor() 
+                cursor.execute("DELETE FROM health_device")
+                conn.close()
     
 
 def transformar_em_json(dados):
@@ -746,12 +753,6 @@ def main():
     )
     
     adicionar_dados(data_values)
-    
-    # if conncetion_chk:
-    #     all_data=ler_dados()
-    #     enviar_para_api(url)
-    
-    
         
     # json_data= json.dumps(data)
     # headers = {'Content-Type': 'application/json'}
