@@ -617,7 +617,6 @@ def adicionar_dados(data):
 
 def ler_dados():    
         conn = sqlite3.connect('/home/pi/.driver_analytics/database/check_health.db')
-        print("entrou no conn de ler dados")
         cursor=conn.cursor() 
         dados = cursor.execute("SELECT * FROM health_device").fetchall()
         conn.close()
@@ -636,9 +635,9 @@ def enviar_para_api(url):
             print(response)
             if 200 == response.status_code:
                 conn = sqlite3.connect('/home/pi/.driver_analytics/database/check_health.db')
-                print("entrou no conn de deletar")
                 cursor=conn.cursor() 
                 cursor.execute("DELETE FROM health_device")
+                conn.commit()
                 conn.close()
     
 
@@ -679,7 +678,7 @@ def transformar_em_json(dados):
 
 def main():
     verificar_e_criar_tabela()
-    url="https://e7e3-131-255-20-145.ngrok-free.app/heartbeat"
+    url="https://b2db-2804-1b2-1002-b3f9-9d90-acae-edf-5f65.ngrok-free.app/heartbeat"
     api_thread = threading.Thread(target=enviar_para_api, args=(url,))
     api_thread.start()
     counter_ind=inicializar_contador()
