@@ -6,6 +6,7 @@ import serial
 import json, requests
 import sqlite3
 import threading
+from threading import Thread
 
 # Caminho do diretório
 directory_path = '/home/pi/.driver_analytics/logs/current/'
@@ -606,70 +607,74 @@ def adicionar_dados(data):
     with db_lock:
         conn = sqlite3.connect('/home/pi/.driver_analytics/database/check_health.db')
         cursor=conn.cursor() 
-        cursor.execute(f"INSERT INTO health_device VALUES {data}")
+        cursor.execute(f''' INSERT INTO health_device (Data, ignition, mode_aways_on, connection_internet, Modem_IP, Signal_modem, Status_modem, connection_extra, 
+        connection_int, Expanded, Free_disk, Size_disk, GPS_Fix, Signal_Strength, Avaible_Satellites, Detected_camera, 
+        Available_camera, Active, Swap_usage, CPU_Usage, ETH0_Interface, WLAN_Interface, USB_LTE, USB_ARD, Temperature, 
+        Mac_Address) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ''', data)
         conn.commit()
         conn.close()
 
-def ler_dados():
-    with db_lock:
+def ler_dados():    
         conn = sqlite3.connect('/home/pi/.driver_analytics/database/check_health.db')
         cursor=conn.cursor() 
-        cursor.execute("SELECT * FROM health_devices")
-        dados = cursor.fetchall()
+        dados = cursor.execute("SELECT * FROM health_device").fetchall()
         conn.close()
         return dados
 
-def enviar_para_api(url, dados):
-    rows=transformar_em_json(dados)
-    headers = {'Content-Type': 'application/json'}
-    for linha in rows:
-        json_data = json.dumps(linha)
-        response = requests.post(url, data=json_data, headers=headers)
+def enviar_para_api(url):
+    response=''
+    with db_lock:
+        dados=ler_dados()
+        rows=transformar_em_json(dados)
+        headers = {'Content-Type': 'application/json'}
+        for linha in rows:
+            json_data = json.dumps(linha)
+            response = requests.post(url, data=json_data, headers=headers)
         print(response)
+           
+    
 
 def transformar_em_json(dados):
-    linhas = dados.split('\n')
     resultado = []
-    for linha in linhas:
-        if linha.strip() != '':
-            valores = linha.split('|')
-            json_linha = {
-                "id": valores[0],
-                "data": valores[1],
-                "ignition": valores[2],
-                "mode_aways_on": valores[3],
-                "connection_internet": valores[4],
-                "Modem_IP": valores[5],
-                "Signal_modem": valores[6],
-                "Status_modem": valores[7],
-                "connection_extra": valores[8],
-                "connection_int": valores[9],
-                "Expanded": valores[10],
-                "Free_disk": valores[11],
-                "Size_disk": valores[12],
-                "GPS_Fix": valores[13],
-                "Signal_Strength": valores[14],
-                "Avaible_Satellites": valores[15],
-                "Detected_camera": valores[16],
-                "Available_camera": valores[17],
-                "Active": valores[18],
-                "Swap_usage": valores[19],
-                "CPU_Usage": valores[20],
-                "ETH0_Interface": valores[21],
-                "WLAN_Interface": valores[22],
-                "USB_LTE": valores[23],
-                "USB_ARD": valores[24],
-                "Temperature": valores[25],
-                "Mac_Address": valores[26]
-            }
-            resultado.append(json_linha)
+    for linha in dados:
+        json_linha = {
+            "id": linha[0],
+            "data": linha[1],
+            "ignition": linha[2],
+            "mode_aways_on": linha[3],
+            "connection_internet": linha[4],
+            "Modem_IP": linha[5],
+            "Signal_modem": linha[6],
+            "Status_modem": linha[7],
+            "connection_extra": linha[8],
+            "connection_int": linha[9],
+            "Expanded": linha[10],
+            "Free_disk": linha[11],
+            "Size_disk": linha[12],
+            "GPS_Fix": linha[13],
+            "Signal_Strength": linha[14],
+            "Avaible_Satellites": linha[15],
+            "Detected_camera": linha[16],
+            "Available_camera": linha[17],
+            "Active": linha[18],
+            "Swap_usage": linha[19],
+            "CPU_Usage": linha[20],
+            "ETH0_Interface": linha[21],
+            "WLAN_Interface": linha[22],
+            "USB_LTE": linha[23],
+            "USB_ARD": linha[24],
+            "Temperature": linha[25],
+            "Mac_Address": linha[26]
+        }
+        resultado.append(json_linha)
     return resultado
 
 def main():
-    
-    url="https://523a-164-163-204-193.ngrok-free.app/heartbeat"
-    log_file_path = '/var/log/checking_health.log'
-    # filename = "/home/pi/.driver_analytics/logs/driver_analytics_health.csv"
+    verificar_e_criar_tabela()
+    url="https://e7e3-131-255-20-145.ngrok-free.app/heartbeat"
+    api_thread = threading.Thread(target=enviar_para_api, args=(url,))
+    api_thread.start()
     counter_ind=inicializar_contador()
     ip_extra="10.0.89.11"
     ip_interna="10.0.90.196"
@@ -712,7 +717,7 @@ def main():
     
     
     data_values =(
-        current_time,
+        current_time.strip('\n'),
         ig, 
         modee,
         conncetion_chk,
@@ -740,20 +745,19 @@ def main():
         macmac.strip()
     )
     
-    
-    verificar_e_criar_tabela()
     adicionar_dados(data_values)
-    if conncetion_chk:
-        all_data=ler_dados()
-        enviar_para_api(url,data_values)
+    
+    # if conncetion_chk:
+    #     all_data=ler_dados()
+    #     enviar_para_api(url)
     
     
         
-    json_data= json.dumps(data)
-    headers = {'Content-Type': 'application/json'}
-    url="https://523a-164-163-204-193.ngrok-free.app/heartbeat"
-    response = requests.post(url, data=json_data, headers=headers)
-    print(response)
+    # json_data= json.dumps(data)
+    # headers = {'Content-Type': 'application/json'}
+    # url="https://523a-164-163-204-193.ngrok-free.app/heartbeat"
+    # response = requests.post(url, data=json_data, headers=headers)
+    # print(response)
                
 
 
