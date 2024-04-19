@@ -47,48 +47,6 @@ def imu_check():
     else:
         return color(' 1 ','red')
 
-    # ---- Opcao 2 -----
-    # bus_number = 1
-    # command = f"i2cdetect -y {bus_number}"
-    # result = subprocess.check_output(command, shell=True, text=True)
-    
-    # for line in result.split('\n')[1:]:
-    #     if not line:
-    #         continue
-    #     address_range, *addresses = line.split()
-    #     for address in addresses:
-    #         if address != "--":
-    #             print(f"Device detected at address {address} on bus {bus_number}")
-
-# capture_first_line(command): This function executes a shell command and captures its first line of output. 
-# It is designed to terminate the process after reading the first line.
-# def capture_first_line(command):
-#     first_line=''
-#     try:
-#         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, shell=True)
-#         lines= process.stdout.readlines()
-#         process.terminate()  # Encerra o processo após ler a primeira linha
-#         if lines:
-#             first_line= lines[0].strip()
-#             return first_line
-#         else:
-#             return ''
-#     except Exception as e:
-#         return f"Erro ao executar o comando: {str(e)}"
-    
-# def read_iccid():
-#     command_icc='sudo timeout 2 cat /dev/ttyUSB4 & sudo stty -F /dev/ttyUSB4 raw -echo & sudo echo -e "AT+CCID\r" > /dev/ttyUSB4'
-#     result, error=run_bash_command(command_icc)
-#     print(error)
-#     if 'OK' in result:
-#         return '\033[1;32;40mSim inserted\033[0m'
-#     else:
-#         return '\033[1;31;40mSim not inserted\033[0m'
-        
-
-
-# check_internet(): This function checks for internet connectivity by attempting to create a connection to 
-# www.google.com. It returns True if the connection is successful and False otherwise.
 def check_internet():
     try:
         # Tente fazer uma conexão com um servidor remoto (por exemplo, o Google)
@@ -116,7 +74,6 @@ def get_machine_storage():
     total_blocks=result.f_blocks
     free_blocks=result.f_bfree
     giga=1024*1024*1024
-    # giga=1000*1000*1000
     total_size=total_blocks*block_size/giga
     free_size=free_blocks*block_size/giga
     total_size = round(total_size)
@@ -137,30 +94,6 @@ def clear_log_file(log_file_path):
     with open(log_file_path, 'w') as file:
         file.write("") 
 
-
-# chk_gps(): This function checks the GPS status by running a command that reads data from the /dev/serial0
-# device and checks if the first line contains the string "$GNGSA,A,3." It returns "GPS ON" if the condition
-# is met, otherwise "GPS OFF."
-    
-#Cheking gps health with bytes
-# def chk_gps2():
-#     gps_device_fd = "/dev/serial0"
-#     gps_device = os.open(gps_device_fd, os.O_RDWR)
-#     gps_data = ""
-#     danger =3
-#     phrase=''
-#     for i in range(1024):
-#         gps_data += os.read(gps_device, 2048).decode('utf-8') 
-#     if "$GNGSA,A,3" in gps_data or "$GNGSA,A,2" in gps_data:
-#         danger="\033[1;32;40mOK\033[0m"
-#         phrase= "\033[1;32;40mINFO SATELLITE\033[0m"
-#     elif "$GPRMC" in gps_data or "$GNRMC" in gps_data:
-#         danger ="\033[1;33;40mOK\033[0m"
-#         phrase= "\033[1;33;40mNOINFO SATELLITE\033[0m"
-#     else:    
-#         danger="\033[1;31;40mNOK\033[0m"
-#         phrase= "\033[1;31;40mERROR\033[0m"
-#     return danger, phrase 
 
 def chk_gps3():
     gps_device_fd = "/dev/serial0"
@@ -338,22 +271,12 @@ def modem_status():
 def get_ccid():
     command = b'AT+QCCID\r'
     result = send_serial_command(command)
-    # print(result)
     ccid = result.split("\n")[1].split(" ")[1]
     if 'OK' in result and ccid:
         return color(f' Sim inserted - CCID: {ccid}', 'green')
     else:
         return color(' Sim not inserted', 'red')
 
-#checa se é possivel tirar um frame com a camera para testar se ela esta funcionando
-# def check_camera_status():
-#    try:
-#       subprocess.run(["raspistill", "-o", "/tmp/camera_test.jpg", "-w", "640", "-h", "480"], check=True,stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-#       return color(" OK ", "green")
-#    except subprocess.CalledProcessError as e:
-#       return color(f" ERROR({e.returncode})", "red")
-   
-#    inclusao de verificacao se camera está conectada e pronta para uso
 def check_camera_status():
     command_frame="tail -n10 /home/pi/.driver_analytics/logs/current/camera.log"
     result, error=run_bash_command(command_frame)
@@ -368,7 +291,6 @@ def check_camera_status():
         diferenca_tempo = time.time() - timestamp_ultima_msg
         if(diferenca_tempo>60):
             available=color(" 0 ","red")
-        #print("Diferença de tempo:", round(diferenca_tempo), "segundos")
 
     command = "vcgencmd get_camera"
     output, error = run_bash_command(command)
@@ -404,7 +326,6 @@ def swap_memory():
     
 
 def usage_cpu():
-    # command = "top -b -n 1 | awk '/%CPU/ {print 100 - $8"%"}'"
     command = "top -bn1 | grep '^%Cpu(s)' | awk '{print $8}'"                                                     
     output, error = run_bash_command(command)
     idle_time = float(output.strip().replace(',', '.'))
@@ -532,7 +453,6 @@ def escrever_contador(contador):
 def incrementar_contador_e_usar():
     contador = ler_contador()
     contador += 1
-    # print("Contador atual:", contador)
     escrever_contador(contador)
 
 def inicializar_contador():
@@ -552,13 +472,10 @@ def checking_ignition():
 def checking_mode():
     command="cat /home/pi/.driver_analytics/mode | grep -ia always | tail -c 2"
     output, error = run_bash_command(command)
-    # print(output)
-    # print(error)
     if output == "":
         out=0
     else:
         out=int(output)
-    # print(out)
     return out
 
 def current_time_pi():
@@ -622,6 +539,7 @@ def ler_dados():
         conn.close()
         return dados
 
+
 def enviar_para_api(url):
     response=''
     with db_lock:
@@ -629,18 +547,20 @@ def enviar_para_api(url):
         if len(dados) != 0: 
             rows=transformar_em_json(dados)
             headers = {'Content-Type': 'application/json'}
-            for linha in rows:
-                json_data = json.dumps(linha)
-                response = requests.post(url, data=json_data, headers=headers)
-            print(response)
-            if 200 == response.status_code:
-                conn = sqlite3.connect('/home/pi/.driver_analytics/database/check_health.db')
-                cursor=conn.cursor() 
-                cursor.execute("DELETE FROM health_device")
-                conn.commit()
-                conn.close()
-    
+            for i in range(0, len(rows), 1000):  # Posta de 1000 em 1000 linhas
+                batch = rows[i:i+1000]
+                for linha in batch:
+                    json_data = json.dumps(linha)
+                    response = requests.post(url, data=json_data, headers=headers)
+                print(response)
+                if 200 == response.status_code:
+                    conn = sqlite3.connect('/home/pi/.driver_analytics/database/check_health.db')
+                    cursor=conn.cursor() 
+                    cursor.execute("DELETE FROM health_device WHERE id <= ?", (batch[-1]['id'],))
+                    conn.commit()
+                    conn.close()
 
+    
 def transformar_em_json(dados):
     resultado = []
     for linha in dados:
@@ -678,14 +598,13 @@ def transformar_em_json(dados):
 
 def main():
     verificar_e_criar_tabela()
-    url="https://b2db-2804-1b2-1002-b3f9-9d90-acae-edf-5f65.ngrok-free.app/heartbeat"
+    url="https://6207-131-255-21-130.ngrok-free.app/heartbeat"
     api_thread = threading.Thread(target=enviar_para_api, args=(url,))
     api_thread.start()
     counter_ind=inicializar_contador()
     ip_extra="10.0.89.11"
     ip_interna="10.0.90.196"
     ig = checking_ignition()
-    #clear_log_file(log_file_path)  # Apaga o conteúdo do arquivo de log ao iniciar
     current_time = current_time_pi()
     if(ig):
         connect_int = check_ip_connectivity(ip_interna)
@@ -709,18 +628,6 @@ def main():
     Ard = chk_ttyARD()
     temperature= temp_system()
     macmac=get_mac()
-    # with open(log_file_path, 'a') as file:
-    #     # file.write(f'\n\033[1;34;40m---Driver_analytics Health---\033[0m\nDate:\n\t- {current_time} \n'
-    #     file.write(f'\n---Driver_analytics Health---\nDate:\n\t- {current_time} \n'
-    #                 f'Connection Analysis:\n\t- connection internet: {conncetion_chk}\n\t- Modem IP:{Process_modem}\n\t- Signal: {signal} \n\t- Status: {status} \n\t conection extra: {connect_ip} \n'
-    #                 f'SD Card Analysis:\n\t- Expanded:{total_size}\n\t- Free disk:{free_size} \n'
-    #                 f'GPS Analysis:\n\t- GPS Fix: {fix}\n\t- Signal Strength: {sig_str}  \n\t- Avaible Satellites: {sat_num} \n'
-    #                 f'Camera Analysis:\n\t- Detected: {detected}\n\t- Available: {available}\n'
-    #                 f'IMU Analysis:\n\t- Active: {imu}\n'
-    #                 f'System Analysis:\n\t- Swap usage: {swapa} \n\t- CPU Usage: {cpu} \n\t- ETH0 Interface: {interface_e} \n\t- WLAN Interface: {interface_wlan}\n\t'
-    #                 f'- USB LTE: {Lte} \n\t- USB ARD: {Ard}\n\t- Temperature: {temperature}\n\t- Mac Adress: {macmac}\n')
-    
-    
     
     data_values =(
         current_time.strip('\n'),
@@ -753,15 +660,8 @@ def main():
     
     adicionar_dados(data_values)
         
-    # json_data= json.dumps(data)
-    # headers = {'Content-Type': 'application/json'}
-    # url="https://523a-164-163-204-193.ngrok-free.app/heartbeat"
-    # response = requests.post(url, data=json_data, headers=headers)
-    # print(response)
                
 
 
 if __name__ == '__main__':
-#     #daemon = Daemonize(app=daemon_name, pid=f'/tmp/{daemon_name}.pid', action=main)
-#     #daemon.start()
     main()

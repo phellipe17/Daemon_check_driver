@@ -1,7 +1,7 @@
 creating service:
 
 
-------------------put insine of archive of service------------------
+------------------put inside of archive of service------------------
 [Unit]
 Description=CHECKING_HEALTH
 After=network.target
