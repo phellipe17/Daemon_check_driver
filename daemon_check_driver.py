@@ -13,6 +13,11 @@ directory_path = '/home/pi/.driver_analytics/logs/current/'
 db_lock = threading.Lock()
 r = requests.session()
 DEBUG = True
+ip_extra="10.0.89.11"
+ip_interna="10.0.90.196"
+ip_externa="10.0.90.195"
+
+
 
 #from daemonize import Daemonize
 daemon_name = 'chk_status'
@@ -40,12 +45,12 @@ def run_bash_command(command):
 
 
 def imu_check():
-    command2 = 'i2cdetect -y 1 | grep -ia 68'
+    command2 = 'cat /home/pi/.driver_analytics/logs/current/imu.log'
     result, error=run_bash_command(command2)
-    if (result != ''):
+    if 'No IMU detected' in result:
         return color(' 1 ','green')
     else:
-        return color(' 1 ','red')
+        return color(' 0 ','red')
 
 def check_internet():
     try:
@@ -469,14 +474,14 @@ def checking_ignition():
     out=int(output)
     return out
 
-def checking_mode():
-    command="cat /home/pi/.driver_analytics/mode | grep -ia always | tail -c 2"
-    output, error = run_bash_command(command)
-    if output == "":
-        out=0
-    else:
-        out=int(output)
-    return out
+# def checking_mode():
+#     command="cat /home/pi/.driver_analytics/mode | grep -ia always | tail -c 2"
+#     output, error = run_bash_command(command)
+#     if output == "":
+#         out=0
+#     else:
+#         out=int(output)
+#     return out
 
 def current_time_pi():
     command="date +'%Y/%m/%d %H:%M:%S'"
@@ -488,35 +493,34 @@ def verificar_e_criar_tabela():
     cursor=conn.cursor() 
     cursor.execute(''' 
         CREATE TABLE IF NOT EXISTS health_device (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            Data TEXT NOT NULL,
-            ignition TEXT NOT NULL,
-            mode_aways_on TEXT NOT NULL,
-            connection_internet TEXT NOT NULL,
-            Modem_IP TEXT NOT NULL,
-            Signal_modem TEXT NOT NULL,
-            Status_modem TEXT NOT NULL,
-            connection_extra TEXT NOT NULL,
-            connection_int TEXT NOT NULL,
-            Expanded TEXT NOT NULL,
-            Free_disk TEXT NOT NULL,
-            Size_disk TEXT NOT NULL,
-            GPS_Fix TEXT NOT NULL,
-            Signal_Strength TEXT NOT NULL,
-            Avaible_Satellites TEXT NOT NULL,
-            Detected_camera TEXT NOT NULL,
-            Available_camera TEXT NOT NULL,
-            Active TEXT NOT NULL,
-            Swap_usage TEXT NOT NULL,
-            CPU_Usage TEXT NOT NULL,
-            ETH0_Interface TEXT NOT NULL,
-            WLAN_Interface TEXT NOT NULL,
-            USB_LTE TEXT NOT NULL,
-            USB_ARD TEXT NOT NULL,
-            Temperature TEXT NOT NULL,
-            Mac_Address TEXT NOT NULL
-        )
-    ''')
+            id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+            Data TEXT,
+            ignition TEXT,
+            mode_aways_on TEXT,
+            connection_internet TEXT,
+            Modem_IP TEXT,
+            Signal_modem TEXT,
+            Status_modem TEXT,
+            connection_extra TEXT,
+            connection_iNT_EXT TEXT,
+            Expanded TEXT,
+            Free_disk TEXT,
+            Size_disk TEXT,
+            GPS_Fix TEXT,
+            Signal_Strength TEXT,
+            Avaible_Satellites TEXT,
+            Detected_camera TEXT,
+            Available_camera TEXT,
+            Active_imu TEXT,
+            Swap_usage TEXT,
+            CPU_Usage TEXT,
+            ETH0_Interface TEXT,
+            WLAN_Interface TEXT,
+            USB_LTE TEXT,
+            USB_ARD TEXT,
+            Temperature TEXT,
+            Mac_Address TEXT
+        )''')
     conn.close()
     
 
@@ -525,8 +529,8 @@ def adicionar_dados(data):
         conn = sqlite3.connect('/home/pi/.driver_analytics/database/check_health.db')
         cursor=conn.cursor() 
         cursor.execute(f''' INSERT INTO health_device (Data, ignition, mode_aways_on, connection_internet, Modem_IP, Signal_modem, Status_modem, connection_extra, 
-        connection_int, Expanded, Free_disk, Size_disk, GPS_Fix, Signal_Strength, Avaible_Satellites, Detected_camera, 
-        Available_camera, Active, Swap_usage, CPU_Usage, ETH0_Interface, WLAN_Interface, USB_LTE, USB_ARD, Temperature, 
+        connection_iNT_EXT, Expanded, Free_disk, Size_disk, GPS_Fix, Signal_Strength, Avaible_Satellites, Detected_camera, 
+        Available_camera, Active_imu, Swap_usage, CPU_Usage, ETH0_Interface, WLAN_Interface, USB_LTE, USB_ARD, Temperature, 
         Mac_Address) 
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ''', data)
         conn.commit()
@@ -574,7 +578,7 @@ def transformar_em_json(dados):
             "Signal_modem": linha[6],
             "Status_modem": linha[7],
             "connection_extra": linha[8],
-            "connection_int": linha[9],
+            "connection_int_ext": linha[9],
             "Expanded": linha[10],
             "Free_disk": linha[11],
             "Size_disk": linha[12],
@@ -583,7 +587,7 @@ def transformar_em_json(dados):
             "Avaible_Satellites": linha[15],
             "Detected_camera": linha[16],
             "Available_camera": linha[17],
-            "Active": linha[18],
+            "Active_imu": linha[18],
             "Swap_usage": linha[19],
             "CPU_Usage": linha[20],
             "ETH0_Interface": linha[21],
@@ -596,40 +600,83 @@ def transformar_em_json(dados):
         resultado.append(json_linha)
     return resultado
 
+def load_config(filename):
+    config = {}
+    with open(filename) as f:
+        for line in f:
+            key, value = line.strip().split("=")
+            config[key] = value
+    return config
+
 def main():
-    verificar_e_criar_tabela()
+    filename="/home/pi/.driver_analytics/mode"
+    config=load_config(filename) 
+    
+    # Guardando os valores das variavel mode em config
+    AS1_BRIDGE_MODE = int(config.get("BRIDGE_MODE", ""))
+    AS1_CAMERA_TYPE = int(config.get("CAMERA_TYPE", ""))
+    AS1_NUMBER_OF_SLAVE_DEVICES = int(config.get("NUMBER_OF_SLAVE_DEVICES", ""))
+    AS1_ALWAYS_ON_MODE = config.get("ALWAYS_ON_MODE", "") if config.get("ALWAYS_ON_MODE", "") != "" else 0
+    
+    verificar_e_criar_tabela() # Verifica se não existe banco e tabela e cria os mesmos
     url="https://6207-131-255-21-130.ngrok-free.app/heartbeat"
     api_thread = threading.Thread(target=enviar_para_api, args=(url,))
-    api_thread.start()
-    counter_ind=inicializar_contador()
-    ip_extra="10.0.89.11"
-    ip_interna="10.0.90.196"
-    ig = checking_ignition()
-    current_time = current_time_pi()
-    if(ig):
-        connect_int = check_ip_connectivity(ip_interna)
-    else:
-        connect_int=0
-    modee=checking_mode()
-    total_size,free_size,size = get_machine_storage()
-    fix, sig_str, sat_num = chk_gps3()
-    detected,available = check_camera_status()
-    conncetion_chk = check_internet()
-    connect_ip= check_ip_connectivity(ip_extra)
-    Process_modem = chk_dial_modem()
-    imu = imu_check()
-    signal = modem_signal()
-    status = modem_status()
-    swapa = swap_memory()
-    cpu = usage_cpu()
-    interface_e = chk_ethernet_interface()
-    interface_wlan = chk_wlan_interface()
-    Lte = chk_ttyLTE()
-    Ard = chk_ttyARD()
-    temperature= temp_system()
-    macmac=get_mac()
+    api_thread.start() # Inicia a thread de postar na api
+    ig = checking_ignition() # checa ignição
+    current_time = current_time_pi() # busca data em que foi rodado o script
+    total_size,free_size,size = get_machine_storage() #busca informações de armazenamento
+    detected,available = check_camera_status() # detecta e verifica o camera
+    conncetion_chk = check_internet() # verifica se tem conexão com a internet
+    swapa = swap_memory() # Verifica se esta tendo swap de memoria
+    cpu = usage_cpu() # % Verifica uso da cpu
+    interface_e = chk_ethernet_interface() # Verifica se existe porta ethernet
+    interface_wlan = chk_wlan_interface() # Verifica se o wifi esta funcional
+    temperature= temp_system() # Verifica temperatura do sistema
+    macmac=get_mac() # Verifica o mac adress
     
-    data_values =(
+    # Verifica conexão com interna ou externa
+    if AS1_CAMERA_TYPE==0:
+        connect_int_ext = check_ip_connectivity(ip_interna)
+    elif AS1_CAMERA_TYPE==1:
+        connect_int_ext = check_ip_connectivity(ip_externa)
+    else:
+        connect_int_ext=None
+    
+    # Verifica modo ALWAYS ON
+    modee=AS1_ALWAYS_ON_MODE if AS1_ALWAYS_ON_MODE != '' else 0
+    
+    # Verifica GPS
+    if(AS1_CAMERA_TYPE==0):
+        fix, sig_str, sat_num = chk_gps3()
+    
+    # Verifica Camera extra
+    if AS1_NUMBER_OF_SLAVE_DEVICES >=2:
+        connect_ip= check_ip_connectivity(ip_extra)
+    else:
+        connect_ip= None
+    
+    #Verifica processos do modem
+    if AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE ==1: # 0 master com slave / 1 master sem slave / 2 e slave
+        Process_modem = chk_dial_modem()
+        imu = imu_check()
+        signal = modem_signal()
+        status = modem_status()
+        Lte = chk_ttyLTE()
+    else:
+       Process_modem = None
+       imu = None
+       signal = None
+       status = None 
+       Lte = None
+    
+    # Verifica Display
+    if AS1_CAMERA_TYPE == 0:
+        Ard = chk_ttyARD()
+    else:
+        Ard = None
+    
+    
+    data_values=(
         current_time.strip('\n'),
         ig, 
         modee,
@@ -638,7 +685,7 @@ def main():
         signal,
         status,
         connect_ip,
-        connect_int,
+        connect_int_ext,
         total_size,
         free_size,
         size,
@@ -658,8 +705,9 @@ def main():
         macmac.strip()
     )
     
-    adicionar_dados(data_values)
-        
+    
+    
+    adicionar_dados(data_values)  
                
 
 
