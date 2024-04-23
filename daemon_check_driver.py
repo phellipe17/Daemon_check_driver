@@ -489,8 +489,8 @@ def adicionar_dados(data,path):
         conn.commit()
         conn.close()
 
-def ler_dados():    
-        conn = sqlite3.connect('/home/pi/.driver_analytics/database/check_health.db')
+def ler_dados(patho):    
+        conn = sqlite3.connect(patho)
         cursor=conn.cursor() 
         dados = cursor.execute("SELECT * FROM health_device").fetchall()
         conn.close()
@@ -500,7 +500,7 @@ def ler_dados():
 def enviar_para_api(url,path):
     response=''
     with db_lock:
-        dados=ler_dados()
+        dados=ler_dados(path)
         if len(dados) != 0: 
             rows=transformar_em_json(dados)
             headers = {'Content-Type': 'application/json'}
