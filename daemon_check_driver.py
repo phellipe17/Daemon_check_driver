@@ -47,10 +47,10 @@ def run_bash_command(command):
 def imu_check():
     command2 = 'cat /home/pi/.driver_analytics/logs/current/imu.log'
     result, error=run_bash_command(command2)
-    if '' in result:
-        return color(' 1 ','green')
+    if 'MPU-9250 init complete' in result:
+        return ' 1 '
     else:
-        return color(' 0 ','red')
+        return ' 0 '
 
 def check_internet():
     try:
@@ -292,9 +292,9 @@ def swap_memory():
     output, error = run_bash_command(command)
     
     if error:
-        return color(f" Error: {error} ", "red")
+        return f" Error: {error} "
     else:
-        return color(f" {output}", "green")
+        return f"{output}%"
     
 
 def usage_cpu():
@@ -441,8 +441,8 @@ def current_time_pi():
 
     return output
 
-def verificar_e_criar_tabela():
-    conn = sqlite3.connect('/home/pi/.driver_analytics/database/check_health.db')
+def verificar_e_criar_tabela(path):
+    conn = sqlite3.connect(path)
     cursor=conn.cursor() 
     cursor.execute(''' 
         CREATE TABLE IF NOT EXISTS health_device (
@@ -477,9 +477,9 @@ def verificar_e_criar_tabela():
     conn.close()
     
 
-def adicionar_dados(data):
+def adicionar_dados(data,path):
     with db_lock:
-        conn = sqlite3.connect('/home/pi/.driver_analytics/database/check_health.db')
+        conn = sqlite3.connect(path)
         cursor=conn.cursor() 
         cursor.execute(f''' INSERT INTO health_device (Data, ignition, mode_aways_on, connection_internet, Modem_IP, Signal_modem, Status_modem, connection_extra, 
         connection_INT_EXT, Expanded, Free_disk, Size_disk, GPS_Fix, Signal_Strength, Avaible_Satellites, Detected_camera, 
@@ -497,7 +497,7 @@ def ler_dados():
         return dados
 
 
-def enviar_para_api(url):
+def enviar_para_api(url,path):
     response=''
     with db_lock:
         dados=ler_dados()
@@ -511,7 +511,7 @@ def enviar_para_api(url):
                     response = requests.post(url, data=json_data, headers=headers)
                 print(response)
                 if 200 == response.status_code:
-                    conn = sqlite3.connect('/home/pi/.driver_analytics/database/check_health.db')
+                    conn = sqlite3.connect(path)
                     cursor=conn.cursor() 
                     cursor.execute("DELETE FROM health_device WHERE id <= ?", (batch[-1]['id'],))
                     conn.commit()
@@ -562,8 +562,12 @@ def load_config(filename):
     return config
 
 def main():
+    pathe="/home/pi/.driver_analytics/database/check_health_e.db"
+    pathi="/home/pi/.driver_analytics/database/check_health_i.db"
+    
     filename="/home/pi/.driver_analytics/mode"
     config=load_config(filename) 
+    path_e=''
     
     # Guardando os valores das variavel mode em config
     AS1_BRIDGE_MODE = int(config.get("BRIDGE_MODE", ""))
@@ -571,9 +575,17 @@ def main():
     AS1_NUMBER_OF_SLAVE_DEVICES = int(config.get("NUMBER_OF_SLAVE_DEVICES", ""))
     AS1_ALWAYS_ON_MODE = config.get("ALWAYS_ON_MODE", "") if config.get("ALWAYS_ON_MODE", "") != "" else 0
     
-    verificar_e_criar_tabela() # Verifica se não existe banco e tabela e cria os mesmos
+    # Verifica se não existe banco e tabela e cria os mesmos
+    if AS1_CAMERA_TYPE == 0:
+        verificar_e_criar_tabela(pathe)
+        path_e=pathe
+    elif AS1_CAMERA_TYPE ==1:
+        verificar_e_criar_tabela(pathi)
+        path_e=pathi
+        
     url="https://6207-131-255-21-130.ngrok-free.app/heartbeat"
-    api_thread = threading.Thread(target=enviar_para_api, args=(url,))
+    
+    api_thread = threading.Thread(target=enviar_para_api, args=(url,path_e))
     api_thread.start() # Inicia a thread de postar na api
     ig = checking_ignition() # checa ignição
     current_time = current_time_pi() # busca data em que foi rodado o script
@@ -601,13 +613,14 @@ def main():
     # Verifica GPS
     if(AS1_CAMERA_TYPE==0):
         fix, sig_str, sat_num = chk_gps3()
+    else:
+        fix, sig_str, sat_num = None,None,None
     
     # Verifica Camera extra
     if AS1_NUMBER_OF_SLAVE_DEVICES >=2:
         connect_extra= check_ip_connectivity(ip_extra)
     else:
         connect_extra= None
-    print(connect_extra)
     
     #Verifica processos do modem
     if AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE ==1: # 0 master com slave / 1 master sem slave / 2 e slave
@@ -660,8 +673,10 @@ def main():
     )
     
     
-    
-    adicionar_dados(data_values)  
+    if AS1_CAMERA_TYPE == 0:
+        adicionar_dados(data_values,pathe) 
+    elif AS1_CAMERA_TYPE ==1:
+        adicionar_dados(data_values,pathi) 
                
 
 
