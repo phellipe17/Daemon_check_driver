@@ -47,7 +47,7 @@ def run_bash_command(command):
 def imu_check():
     command2 = 'cat /home/pi/.driver_analytics/logs/current/imu.log'
     result, error=run_bash_command(command2)
-    if 'No IMU detected' in result:
+    if 'MPU-9250 init complete' in str(result):
         return color(' 1 ','green')
     else:
         return color(' 0 ','red')
@@ -327,7 +327,7 @@ def swap_memory():
     if error:
         return color(f" Error: {error} ", "red")
     else:
-        return color(f" {output}", "green")
+        return color(f" {output}%", "green")
     
 
 def usage_cpu():
@@ -502,7 +502,7 @@ def verificar_e_criar_tabela():
             Signal_modem TEXT,
             Status_modem TEXT,
             connection_extra TEXT,
-            connection_iNT_EXT TEXT,
+            connection_INT_EXT TEXT,
             Expanded TEXT,
             Free_disk TEXT,
             Size_disk TEXT,
@@ -529,7 +529,7 @@ def adicionar_dados(data):
         conn = sqlite3.connect('/home/pi/.driver_analytics/database/check_health.db')
         cursor=conn.cursor() 
         cursor.execute(f''' INSERT INTO health_device (Data, ignition, mode_aways_on, connection_internet, Modem_IP, Signal_modem, Status_modem, connection_extra, 
-        connection_iNT_EXT, Expanded, Free_disk, Size_disk, GPS_Fix, Signal_Strength, Avaible_Satellites, Detected_camera, 
+        connection_INT_EXT, Expanded, Free_disk, Size_disk, GPS_Fix, Signal_Strength, Avaible_Satellites, Detected_camera, 
         Available_camera, Active_imu, Swap_usage, CPU_Usage, ETH0_Interface, WLAN_Interface, USB_LTE, USB_ARD, Temperature, 
         Mac_Address) 
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ''', data)
@@ -635,9 +635,9 @@ def main():
     macmac=get_mac() # Verifica o mac adress
     
     # Verifica conexão com interna ou externa
-    if AS1_CAMERA_TYPE==0:
+    if AS1_CAMERA_TYPE == 0:
         connect_int_ext = check_ip_connectivity(ip_interna)
-    elif AS1_CAMERA_TYPE==1:
+    elif AS1_CAMERA_TYPE ==1:
         connect_int_ext = check_ip_connectivity(ip_externa)
     else:
         connect_int_ext=None
@@ -651,9 +651,10 @@ def main():
     
     # Verifica Camera extra
     if AS1_NUMBER_OF_SLAVE_DEVICES >=2:
-        connect_ip= check_ip_connectivity(ip_extra)
+        connect_extra= check_ip_connectivity(ip_extra)
     else:
-        connect_ip= None
+        connect_extra= None
+    print(connect_extra)
     
     #Verifica processos do modem
     if AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE ==1: # 0 master com slave / 1 master sem slave / 2 e slave
@@ -684,7 +685,7 @@ def main():
         Process_modem, 
         signal,
         status,
-        connect_ip,
+        connect_extra,
         connect_int_ext,
         total_size,
         free_size,
