@@ -5,6 +5,7 @@ import subprocess
 import serial
 import json, requests
 import sqlite3
+from sqlite3 import Error
 import threading
 from threading import Thread
 
@@ -16,11 +17,14 @@ DEBUG = True
 ip_extra="10.0.89.11"
 ip_interna="10.0.90.196"
 ip_externa="10.0.90.195"
-
-
+retry_time_in_seconds = int(60)
+token = ""
+pathe="/home/pi/.driver_analytics/database/check_health_e.db"
+pathi="/home/pi/.driver_analytics/database/check_health_i.db"
+pathdriver="/home/pi/.driver_analytics/database/driveranalytics.db"
 
 #from daemonize import Daemonize
-daemon_name = 'chk_status'
+# daemon_name = 'chk_status'
 
 # def color(msg, collor):
 #     coloring=False #False para não imprimir com cor, True para sair com cor
@@ -399,26 +403,26 @@ def postChekingHealth(urlbase, url, idVehicle, token):
 
     return ret_status_code, response_json
 
-def ler_contador():
-    with open("/home/pi/.monitor/counter.txt", "r") as arquivo:
-        return int(arquivo.read().strip())
+# def ler_contador():
+#     with open("/home/pi/.monitor/counter.txt", "r") as arquivo:
+#         return int(arquivo.read().strip())
 
-def escrever_contador(contador):
-    with open("/home/pi/.monitor/counter.txt", "w") as arquivo:
-        arquivo.write(str(contador))
+# def escrever_contador(contador):
+#     with open("/home/pi/.monitor/counter.txt", "w") as arquivo:
+#         arquivo.write(str(contador))
     
-def incrementar_contador_e_usar():
-    contador = ler_contador()
-    contador += 1
-    escrever_contador(contador)
+# def incrementar_contador_e_usar():
+#     contador = ler_contador()
+#     contador += 1
+#     escrever_contador(contador)
 
-def inicializar_contador():
-    if not os.path.exists("/home/pi/.monitor/counter.txt"):
-        with open("/home/pi/.monitor/counter.txt", "w") as arquivo:
-            arquivo.write("0")
-            return ' 0 '
-    else:
-        return ler_contador()
+# def inicializar_contador():
+#     if not os.path.exists("/home/pi/.monitor/counter.txt"):
+#         with open("/home/pi/.monitor/counter.txt", "w") as arquivo:
+#             arquivo.write("0")
+#             return ' 0 '
+#     else:
+#         return ler_contador()
 
 def checking_ignition():
     command="cat /dev/shm/IGNITION_IS_ON"
@@ -442,7 +446,7 @@ def current_time_pi():
     return output
 
 def verificar_e_criar_tabela(path):
-    conn = sqlite3.connect(path)
+    conn = create_connection(path)
     cursor=conn.cursor() 
     cursor.execute(''' 
         CREATE TABLE IF NOT EXISTS health_device (
@@ -479,7 +483,7 @@ def verificar_e_criar_tabela(path):
 
 def adicionar_dados(data,path):
     with db_lock:
-        conn = sqlite3.connect(path)
+        conn = create_connection(path)
         cursor=conn.cursor() 
         cursor.execute(f''' INSERT INTO health_device (Data, ignition, mode_aways_on, connection_internet, Modem_IP, Signal_modem, Status_modem, connection_extra, 
         connection_INT_EXT, Expanded, Free_disk, Size_disk, GPS_Fix, Signal_Strength, Avaible_Satellites, Detected_camera, 
@@ -490,15 +494,159 @@ def adicionar_dados(data,path):
         conn.close()
 
 def ler_dados(patho):    
-        conn = sqlite3.connect(patho)
+        conn = create_connection(patho)
         cursor=conn.cursor() 
         dados = cursor.execute("SELECT * FROM health_device").fetchall()
         conn.close()
         return dados
 
+#funciton to catch info com database    
+def select_field_from_table(conn, field, table):
+    cur = conn.cursor()
 
-def enviar_para_api(url,path):
+    command_sql = "SELECT " + field +  " from " + table + " LIMIT 1"
+
+    cur.execute(command_sql)
+
+    value = cur.fetchone()
+
+    log(value[0])
+
+    user_ret = value[0]
+
+    log(type(user_ret))
+
+    if (type(user_ret) is str):
+        log("type is string")
+    elif (type(user_ret) is bytes):
+        log("type is bytes")
+        user_ret = user_ret.decode("utf-8")
+    else:
+        user_ret = str(user_ret)        
+
+    return user_ret    
+
+# def getVehicle2(urlbase, url, plate, token):
+#     global r
+
+#     urlApi = urlbase + url + "?placa=" + plate
+
+#     log(urlApi)
+
+#     # content = "\"content-type\":\"Bearer " + token + "\""
+#     # log(content)
+
+#     try:
+#         r.headers.clear()
+#         r.cookies.clear()
+#         r = requests.get(urlApi, headers={"Authorization":"Bearer " + token, 'Cache-Control': 'no-cache' })
+#     except requests.exceptions.RequestException as e:  # This is the correct syntax
+#         log(e)
+#         log("error on getVehicle")
+#         return 500, {}
+
+#     ret_status_code = r.status_code
+#     log("[getVehicle] ret code", ret_status_code)
+
+#     response_json = {}
+
+#     if ret_status_code == 200:
+#         log("[getVehicle] Success! ")
+#         response_json = r.json()
+#     else:
+#         log("[getVehicle] Error")
+
+#     return ret_status_code, response_json
+
+#function to get information about vehicle, maybe necessery change to search by mac
+def getVehicle(urlbase, url, mac, token):
+    global r
+
+    urlApi = urlbase + url + "?mac_address=" + mac
+
+    log(urlApi)
+
+    # content = "\"content-type\":\"Bearer " + token + "\""
+    # log(content)
+
+    try:
+        r.headers.clear()
+        r.cookies.clear()
+        r = requests.get(urlApi, headers={"Authorization":"Bearer " + token, 'Cache-Control': 'no-cache' })
+    except requests.exceptions.RequestException as e:  # This is the correct syntax
+        log(e)
+        log("error on getVehicle")
+        return 500, {}
+
+    ret_status_code = r.status_code
+    log("[getVehicle] ret code", ret_status_code)
+
+    response_json = {}
+
+    if ret_status_code == 200:
+        log("[getVehicle] Success! ")
+        response_json = r.json()
+    else:
+        log("[getVehicle] Error")
+
+    return ret_status_code, response_json
+
+
+def enviar_para_api(path):
+    
     response=''
+    database2=pathdriver
+    # create a database connection
+    #comunicate with db getting macadress to search in api
+    conn = create_connection(database2)
+    conn1= create_connection(path)
+    # catch some data to struct api comunication
+    with conn:
+        api_user = select_field_from_table(conn, "user", "api_config")
+        log(api_user)
+
+        api_pass = select_field_from_table(conn, "password", "api_config")
+        log(api_pass)
+
+        api_url = select_field_from_table(conn, "url", "api_config")
+        log(api_url)
+
+        vehicle_plate = select_field_from_table(conn, "placa", "vehicle_config")
+
+        vehicle_mac = select_field_from_table(conn1, "Mac_Address", "health_device")
+        
+        log(vehicle_plate)
+    
+    # get vehicle
+        code = None
+        while (code != 200):
+            code, vehicleJson = getVehicle(api_url, "/vehicles", vehicle_plate, token)
+            if (code != 200):
+                time.sleep(retry_time_in_seconds)
+            if (code == 401):
+                codeLogin = None
+                while (codeLogin != 201):
+                    codeLogin, token = login(api_url, "auth/local", api_user, api_pass)
+                    if (codeLogin != 201):
+                        time.sleep(retry_time_in_seconds)
+
+        count = vehicleJson['count']
+
+        log(count)
+
+        vehicleId = None
+        if (code == 200 and count != 0):
+            vehicleId = vehicleJson['rows'][0]['id']
+        else:
+            #create Vehicle
+            log("Vehicle Not Found")
+            exit()
+
+        log("vehicleId", vehicleId)
+        # get vehicle end
+    
+    # url="https://6207-131-255-21-130.ngrok-free.app/heartbeat"
+    url= api_url+"/devices/?Mac_addres="+vehicle_mac # url construida para comunicar no veiculo correto
     with db_lock:
         dados=ler_dados(path)
         if len(dados) != 0: 
@@ -511,7 +659,7 @@ def enviar_para_api(url,path):
                     response = requests.post(url, data=json_data, headers=headers)
                 print(response)
                 if 200 == response.status_code:
-                    conn = sqlite3.connect(path)
+                    conn = create_connection(path)
                     cursor=conn.cursor() 
                     cursor.execute("DELETE FROM health_device WHERE id <= ?", (batch[-1]['id'],))
                     conn.commit()
@@ -561,13 +709,27 @@ def load_config(filename):
             config[key] = value
     return config
 
+# function to create a connection with database
+def create_connection(db_file):
+    """ create a database connection to the SQLite database
+        specified by the db_file
+    :param db_file: database file
+    :return: Connection object or None
+    """
+    conn = None
+    try:
+        conn = sqlite3.connect(db_file)
+    except Error as e:
+        log(e)
+
+    return conn
+
 def main():
-    pathe="/home/pi/.driver_analytics/database/check_health_e.db"
-    pathi="/home/pi/.driver_analytics/database/check_health_i.db"
+    path_e=''
     
     filename="/home/pi/.driver_analytics/mode"
     config=load_config(filename) 
-    path_e=''
+    
     
     # Guardando os valores das variavel mode em config
     AS1_BRIDGE_MODE = int(config.get("BRIDGE_MODE", ""))
@@ -583,9 +745,9 @@ def main():
         verificar_e_criar_tabela(pathi)
         path_e=pathi
         
-    url="https://6207-131-255-21-130.ngrok-free.app/heartbeat"
+    # url="https://6207-131-255-21-130.ngrok-free.app/heartbeat"
     
-    api_thread = threading.Thread(target=enviar_para_api, args=(url,path_e))
+    api_thread = threading.Thread(target=enviar_para_api, args=(path_e))
     api_thread.start() # Inicia a thread de postar na api
     ig = checking_ignition() # checa ignição
     current_time = current_time_pi() # busca data em que foi rodado o script
@@ -670,8 +832,7 @@ def main():
         Ard, 
         temperature,
         macmac.strip()
-    )
-    
+    ) 
     
     if AS1_CAMERA_TYPE == 0:
         adicionar_dados(data_values,pathe) 
