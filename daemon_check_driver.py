@@ -330,114 +330,11 @@ def log(s, value=None):
             print(s, value)
 
 
-#função para fazer login na api driveranalytics
-def login(urlbase, url, user, password):
-    global r
-    params =    {
-                    'username': user,
-                    'password': password
-                }
-
-    urlApi = urlbase + url
-    log(urlApi)
-    log(user)
-    log(password)
-
-    try:
-        r.headers.clear()
-        r.cookies.clear()
-        r = requests.post(urlApi, params=params, timeout=6.0)
-    except (requests.exceptions.ConnectTimeout, requests.exceptions.HTTPError, requests.exceptions.ReadTimeout, requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
-        log("Connection error - try again")
-        log(e)
-        return 502, {}
-    except requests.exceptions.RequestException as e:  # This is the correct syntax
-        log(e)
-        log("error on login")
-        return 500, {}
-
-    ret_status_code = r.status_code
-    log("[login] ret code", ret_status_code)
-
-    response_json = {}
-
-    if ret_status_code == 201:
-        log("[login] Success! ")
-        response_json = r.json()
-        global company
-        company = response_json['user']['company']['id']
-        response_json = response_json['token']
-    else:
-        log("[login] Error")
-
-    return ret_status_code, response_json
-
-#função para fazer o post na api driveranalytics        
-def postChekingHealth(urlbase, url, idVehicle, token):
-    global r
-
-    urlApi = urlbase + url + idVehicle + "/getConfigIni"
-
-    log(urlApi)
-
-    try:
-        r.headers.clear()
-        r.cookies.clear()
-        # Enviar uma solicitação POST com os parâmetros necessários
-        r = requests.post(urlApi, headers={"Authorization":"Bearer " + token, 'Cache-Control': 'no-cache' })
-    except requests.exceptions.RequestException as e:  
-        log(e)
-        log("error on postVehicle")
-        return 500, {}
-
-    ret_status_code = r.status_code
-    log("[postVehicle] ret code", ret_status_code)
-
-    response_json = {}
-
-    if ret_status_code == 200:
-        log("[postVehicle] Success! ")
-        response_json = r.json()  # Convertendo a resposta para JSON
-    else:
-        log("[postVehicle] Error")
-
-    return ret_status_code, response_json
-
-# def ler_contador():
-#     with open("/home/pi/.monitor/counter.txt", "r") as arquivo:
-#         return int(arquivo.read().strip())
-
-# def escrever_contador(contador):
-#     with open("/home/pi/.monitor/counter.txt", "w") as arquivo:
-#         arquivo.write(str(contador))
-    
-# def incrementar_contador_e_usar():
-#     contador = ler_contador()
-#     contador += 1
-#     escrever_contador(contador)
-
-# def inicializar_contador():
-#     if not os.path.exists("/home/pi/.monitor/counter.txt"):
-#         with open("/home/pi/.monitor/counter.txt", "w") as arquivo:
-#             arquivo.write("0")
-#             return ' 0 '
-#     else:
-#         return ler_contador()
-
 def checking_ignition():
     command="cat /dev/shm/IGNITION_IS_ON"
     output, error = run_bash_command(command)
     out=int(output)
     return out
-
-# def checking_mode():
-#     command="cat /home/pi/.driver_analytics/mode | grep -ia always | tail -c 2"
-#     output, error = run_bash_command(command)
-#     if output == "":
-#         out=0
-#     else:
-#         out=int(output)
-#     return out
 
 def current_time_pi():
     command="date +'%Y/%m/%d %H:%M:%S'"
@@ -524,39 +421,89 @@ def select_field_from_table(conn, field, table):
     else:
         user_ret = str(user_ret)        
 
-    return user_ret    
+    return user_ret
 
-# def getVehicle2(urlbase, url, plate, token):
-#     global r
+#função para fazer login na api driveranalytics
+def login(urlbase, url, user, password):
+    global r
+    params =    {
+                    'username': user,
+                    'password': password
+                }
 
-#     urlApi = urlbase + url + "?placa=" + plate
+    urlApi = urlbase + url
+    log(urlApi)
+    log(user)
+    log(password)
 
-#     log(urlApi)
+    try:
+        r.headers.clear()
+        r.cookies.clear()
+        r = requests.post(urlApi, params=params, timeout=6.0)
+    except (requests.exceptions.ConnectTimeout, requests.exceptions.HTTPError, requests.exceptions.ReadTimeout, requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
+        log("Connection error - try again")
+        log(e)
+        return 502, {}
+    except requests.exceptions.RequestException as e:  # This is the correct syntax
+        log(e)
+        log("error on login")
+        return 500, {}
 
-#     # content = "\"content-type\":\"Bearer " + token + "\""
-#     # log(content)
+    ret_status_code = r.status_code
+    log("[login] ret code", ret_status_code)
 
-#     try:
-#         r.headers.clear()
-#         r.cookies.clear()
-#         r = requests.get(urlApi, headers={"Authorization":"Bearer " + token, 'Cache-Control': 'no-cache' })
-#     except requests.exceptions.RequestException as e:  # This is the correct syntax
-#         log(e)
-#         log("error on getVehicle")
-#         return 500, {}
+    response_json = {}
 
-#     ret_status_code = r.status_code
-#     log("[getVehicle] ret code", ret_status_code)
+    if ret_status_code == 201:
+        log("[login] Success! ")
+        response_json = r.json()
+        global company
+        company = response_json['user']['company']['id']
+        response_json = response_json['token']
+    else:
+        log("[login] Error")
 
-#     response_json = {}
+    return ret_status_code, response_json
 
-#     if ret_status_code == 200:
-#         log("[getVehicle] Success! ")
-#         response_json = r.json()
-#     else:
-#         log("[getVehicle] Error")
+#função para fazer o post na api driveranalytics        
+def postChekingHealth(urlbase, url, idVehicle, token, database):
+    global r
 
-#     return ret_status_code, response_json
+    urlApi = urlbase + url + idVehicle + "/heartbeat"
+
+    log(urlApi)
+
+    with db_lock:
+        dados=ler_dados(database)
+        if len(dados) != 0: 
+            rows=transformar_em_json(dados)
+            for i in range(0, len(rows), 1000):  # Posta de 1000 em 1000 linhas
+                batch = rows[i:i+1000]
+                for linha in batch:
+                    json_data = json.dumps(linha)
+                    try:
+                        r.headers.clear()
+                        r.cookies.clear()
+                        # Enviar uma solicitação POST com os parâmetros necessários
+                        r = requests.post(urlApi, headers={"Authorization":"Bearer " + token, 'Cache-Control': 'no-cache'},data=json_data)
+                    except requests.exceptions.RequestException as e:  
+                        log(e)
+                        log("error on postVehicle")
+                        return 500, {}
+
+                    ret_status_code = r.status_code
+                    log("[postVehicle] ret code", ret_status_code)
+
+                    response_json = {}
+
+                    if ret_status_code == 200:
+                        log("[postVehicle] Success! ")
+                        
+                        response_json = r.json()  # Convertendo a resposta para JSON
+                    else:
+                        log("[postVehicle] Error")
+
+                    return ret_status_code, response_json    
 
 #function to get information about vehicle, maybe necessery change to search by mac
 def getVehicle(urlbase, url, mac, token):
@@ -593,7 +540,7 @@ def getVehicle(urlbase, url, mac, token):
 
 
 def enviar_para_api(path):
-    
+    global token
     response=''
     database2=pathdriver
     # create a database connection
@@ -612,58 +559,62 @@ def enviar_para_api(path):
         log(api_url)
 
         vehicle_plate = select_field_from_table(conn, "placa", "vehicle_config")
-
-        vehicle_mac = select_field_from_table(conn1, "Mac_Address", "health_device")
         
         log(vehicle_plate)
     
+    
+    with conn1:
+        vehicle_mac = select_field_from_table(conn1, "Mac_Address", "health_device")
+        
+    
     # get vehicle
-        code = None
-        while (code != 200):
-            code, vehicleJson = getVehicle(api_url, "/vehicles", vehicle_plate, token)
-            if (code != 200):
-                time.sleep(retry_time_in_seconds)
-            if (code == 401):
-                codeLogin = None
-                while (codeLogin != 201):
-                    codeLogin, token = login(api_url, "auth/local", api_user, api_pass)
-                    if (codeLogin != 201):
-                        time.sleep(retry_time_in_seconds)
-
-        count = vehicleJson['count']
-
-        log(count)
-
-        vehicleId = None
-        if (code == 200 and count != 0):
-            vehicleId = vehicleJson['rows'][0]['id']
-        else:
-            #create Vehicle
-            log("Vehicle Not Found")
-            exit()
-
-        log("vehicleId", vehicleId)
-        # get vehicle end
+    code = None
+    
+    while (code != 200):
+        code, vehicleJson = getVehicle(api_url, "/vehicles", vehicle_mac, token)
+        if (code != 200):
+            time.sleep(retry_time_in_seconds)
+        if (code == 401):
+            codeLogin = None
+            while (codeLogin != 201):
+                codeLogin, token = login(api_url, "auth/local", api_user, api_pass)
+                if (codeLogin != 201):
+                    time.sleep(retry_time_in_seconds)
+    count = vehicleJson['count']
+    
+    log(count)
+    vehicleId = None
+    if (code == 200 and count != 0):
+        vehicleId = vehicleJson['rows'][0]['id']
+    else:
+        #create Vehicle
+        log("Vehicle Not Found")
+        exit()
+    log("vehicleId", vehicleId)
+    # get vehicle end
     
     # url="https://6207-131-255-21-130.ngrok-free.app/heartbeat"
-    url= api_url+"/devices/?Mac_addres="+vehicle_mac # url construida para comunicar no veiculo correto
-    with db_lock:
-        dados=ler_dados(path)
-        if len(dados) != 0: 
-            rows=transformar_em_json(dados)
-            headers = {'Content-Type': 'application/json'}
-            for i in range(0, len(rows), 1000):  # Posta de 1000 em 1000 linhas
-                batch = rows[i:i+1000]
-                for linha in batch:
-                    json_data = json.dumps(linha)
-                    response = requests.post(url, data=json_data, headers=headers)
-                print(response)
-                if 200 == response.status_code:
-                    conn = create_connection(path)
-                    cursor=conn.cursor() 
-                    cursor.execute("DELETE FROM health_device WHERE id <= ?", (batch[-1]['id'],))
-                    conn.commit()
-                    conn.close()
+    
+    response,jotason=postChekingHealth(api_url,"/vehicles",vehicleId,token,path)
+    print(response)
+    # url= api_url+"/devices/?mac_address="+vehicle_mac # url construida para comunicar no veiculo correto
+    # with db_lock:
+    #     dados=ler_dados(path)
+    #     if len(dados) != 0: 
+    #         rows=transformar_em_json(dados)
+    #         headers = {'Content-Type': 'application/json'}
+    #         for i in range(0, len(rows), 1000):  # Posta de 1000 em 1000 linhas
+    #             batch = rows[i:i+1000]
+    #             for linha in batch:
+    #                 json_data = json.dumps(linha)
+    #                 response = requests.post(url, data=json_data, headers=headers)
+    #             print(response)
+    #             if 200 == response.status_code:
+    #                 conn = create_connection(path)
+    #                 cursor=conn.cursor() 
+    #                 cursor.execute("DELETE FROM health_device WHERE id <= ?", (batch[-1]['id'],))
+    #                 conn.commit()
+    #                 conn.close()
 
     
 def transformar_em_json(dados):
@@ -729,7 +680,8 @@ def main():
     
     filename="/home/pi/.driver_analytics/mode"
     config=load_config(filename) 
-    
+    global token
+    code = None
     
     # Guardando os valores das variavel mode em config
     AS1_BRIDGE_MODE = int(config.get("BRIDGE_MODE", ""))
