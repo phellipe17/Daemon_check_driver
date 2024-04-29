@@ -317,7 +317,7 @@ def temp_system():
     return f"{tempe}°" if not error else f"Error: {error}"
 
 def get_mac():
-    command = "ifconfig eth0 | grep -oE '([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}'"
+    command = "ifconfig wlan0 | awk '/ether/ {print $2}'"
     output,error= run_bash_command(command)
     
     return output if not error else f"Error: {error}"
@@ -469,7 +469,7 @@ def login(urlbase, url, user, password):
 def postChekingHealth(urlbase, url, idVehicle, token, database):
     global r
 
-    urlApi = urlbase + url + idVehicle + "/heartbeat"
+    urlApi = urlbase + url + "heartbeat/" + idVehicle
 
     log(urlApi)
 
@@ -539,13 +539,12 @@ def getVehicle(urlbase, url, mac, token):
     return ret_status_code, response_json
 
 
-def enviar_para_api(path):
+def enviar_para_api(path,path_o):
     global token
     response=''
-    database2=pathdriver
     # create a database connection
     #comunicate with db getting macadress to search in api
-    conn = create_connection(database2)
+    conn = create_connection(path_o)
     conn1= create_connection(path)
     # catch some data to struct api comunication
     with conn:
@@ -562,16 +561,27 @@ def enviar_para_api(path):
         
         log(vehicle_plate)
     
-    
+    print("pegou dados no banco")
     with conn1:
         vehicle_mac = select_field_from_table(conn1, "Mac_Address", "health_device")
+    
+    if not vehicle_mac:
+        print("Endereço MAC não encontrado. Abortando o envio para a API.")
+        return   
         
     
-    # get vehicle
+    #login
     code = None
+    while (code != 201):
+        code, token = login(api_url, "auth/local", str(api_user), str(api_pass))
+        if (code != 201):
+            time.sleep(retry_time_in_seconds)
     
+    log("Login Token: ", token)
+    
+    # get vehicle
     while (code != 200):
-        code, vehicleJson = getVehicle(api_url, "/vehicles", vehicle_mac, token)
+        code, vehicleJson = getVehicle(api_url, "vehicles/", vehicle_mac, token)
         if (code != 200):
             time.sleep(retry_time_in_seconds)
         if (code == 401):
@@ -580,8 +590,9 @@ def enviar_para_api(path):
                 codeLogin, token = login(api_url, "auth/local", api_user, api_pass)
                 if (codeLogin != 201):
                     time.sleep(retry_time_in_seconds)
-    count = vehicleJson['count']
     
+    count = vehicleJson['count']
+    # print("achou o veiculo e logou no portal")
     log(count)
     vehicleId = None
     if (code == 200 and count != 0):
@@ -592,10 +603,10 @@ def enviar_para_api(path):
         exit()
     log("vehicleId", vehicleId)
     # get vehicle end
-    
+    print("achou o id")
     # url="https://6207-131-255-21-130.ngrok-free.app/heartbeat"
     
-    response,jotason=postChekingHealth(api_url,"/vehicles",vehicleId,token,path)
+    response,jotason=postChekingHealth(api_url,"vehicles/",vehicleId,token,path)
     print(response)
     # url= api_url+"/devices/?mac_address="+vehicle_mac # url construida para comunicar no veiculo correto
     # with db_lock:
@@ -699,7 +710,7 @@ def main():
         
     # url="https://6207-131-255-21-130.ngrok-free.app/heartbeat"
     
-    api_thread = threading.Thread(target=enviar_para_api, args=(path_e))
+    api_thread = threading.Thread(target=enviar_para_api, args=(path_e,pathdriver))
     api_thread.start() # Inicia a thread de postar na api
     ig = checking_ignition() # checa ignição
     current_time = current_time_pi() # busca data em que foi rodado o script
