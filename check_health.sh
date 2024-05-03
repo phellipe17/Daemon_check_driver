@@ -5,7 +5,7 @@ check_udev_rules() {
         if grep -q "ttyMDN" /etc/udev/rules.d/40-usb-serial.rules; then
             echo "ttyMDN* exists"
         else
-            echo -e '\n\n#info modem \nKERNEL=="ttyUSB*", KERNELS=="1-1.5:1.3", SYMLINK="ttyMDN", MODE="0777"' | sudo tee -a /etc/udev/rules.d/40-usb-serial.rules >> /dev/null
+            echo -e '\n#info modem \nKERNEL=="ttyUSB*", KERNELS=="1-1.5:1.3", SYMLINK="ttyMDN", MODE="0777"' | sudo tee -a /etc/udev/rules.d/40-usb-serial.rules >> /dev/null
             sudo udevadm control --reload-rules
             if [ $? -eq 0 ]; then
                 echo "Regras UDEV recarregadas"
@@ -64,14 +64,25 @@ check_health_daemon_systemd(){
     healthMonitorSystemdFilePath="/etc/systemd/system/checking_health.service"
     healthMonitorSystemdFilePathAsString="$(<$healthMonitorSystemdFilePath)"
 
-    if [ "$HEALTH_MONITOR_SYSTEMD_FILE_CONFIG_DESIRED_CONTENT_AS_STRING" == "$healthMonitorSystemdFilePathAsString" ]; then
-        echo -e "\nArquivo de $healthMonitorSystemdFilePath está na versão correta" #>> $LOG_FILE
+    if [ -f "$healthMonitorSystemdFilePath" ]; then
+        healthMonitorSystemdFilePathAsString=$(<$healthMonitorSystemdFilePath)
+        if [ "$HEALTH_MONITOR_SYSTEMD_FILE_CONFIG_DESIRED_CONTENT_AS_STRING" == "$healthMonitorSystemdFilePathAsString" ]; then
+            echo -e "\nArquivo de $healthMonitorSystemdFilePath está na versão correta" #>> $LOG_FILE
+        else
+            echo "Atualizando arquivo $healthMonitorSystemdFilePath" #>> $LOG_FILE
+            sudo touch $healthMonitorSystemdFilePath
+            sudo bash -c "echo -en '$HEALTH_MONITOR_SYSTEMD_FILE_CONFIG_DESIRED_CONTENT' >$healthMonitorSystemdFilePath"
+	    	sudo systemctl daemon-reload
+	    	sudo systemctl enable checking_health.service
+	    	sudo service checking_health restart
+        fi
     else
-        echo "Atualizando arquivo $healthMonitorSystemdFilePath" #>> $LOG_FILE
-        echo -en $HEALTH_MONITOR_SYSTEMD_FILE_CONFIG_DESIRED_CONTENT >$healthMonitorSystemdFilePath
-		sudo systemctl daemon-reload
-		sudo systemctl enable checking_health.service
-		sudo service checking_health restart
+        echo "Criando arquivo $healthMonitorSystemdFilePath" #>> $LOG_FILE
+        sudo touch $healthMonitorSystemdFilePath
+        sudo bash -c "echo -en '$HEALTH_MONITOR_SYSTEMD_FILE_CONFIG_DESIRED_CONTENT' >$healthMonitorSystemdFilePath"
+        sudo systemctl daemon-reload
+        sudo systemctl enable checking_health.service
+        sudo service checking_health restart
     fi
 }
 
