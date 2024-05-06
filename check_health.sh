@@ -86,9 +86,11 @@ check_health_daemon_systemd(){
     fi
 }
 
-check_pip3
+# check_pip3
 
-check_pyserial
+# check_pyserial
+
+sudo apt-get install python3-serial
 
 check_udev_rules
 
