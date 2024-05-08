@@ -1,3 +1,4 @@
+HOME_PATH="/home/pi"
 HEALTH_MONITOR_PATH=$HOME_PATH"/.monitor"
 
 check_udev_rules() {
@@ -18,23 +19,23 @@ check_udev_rules() {
     fi
 }
 
-check_pyserial() {
-    if python3 -c "import serial" &>/dev/null; then
-        echo "pyserial is already installed."
-    else
-        echo "pyserial is not installed."
-        sudo pip3 install pyserial
-    fi
-}
+# check_pyserial() {
+#     if python3 -c "import serial" &>/dev/null; then
+#         echo "pyserial is already installed."
+#     else
+#         echo "pyserial is not installed."
+#         sudo pip3 install pyserial
+#     fi
+# }
 
-check_pip3() {
-    if python3 -c "import pip" &>/dev/null; then
-        echo "pip3 is already installed."
-    else
-        echo "pip3 is not installed."
-        sudo apt-get install python3-pip
-    fi
-}
+# check_pip3() {
+#     if python3 -c "import pip" &>/dev/null; then
+#         echo "pip3 is already installed."
+#     else
+#         echo "pip3 is not installed."
+#         sudo apt-get install python3-pip
+#     fi
+# }
 
 check_health_daemon_systemd(){
     # [Unit]
@@ -90,9 +91,33 @@ check_health_daemon_systemd(){
 
 # check_pyserial
 
-sudo apt-get install python3-serial
+check_python_serial(){
+    if dpkg -l | grep -q python3-serial; then
+        echo "python3-serial is already installed."
+    else
+        echo "python3-serial is not installed."
+        sudo apt-get install python3-serial
+    fi
+}
 
-check_udev_rules
+
+
+check_udev_if_needed(){
+    if [ -f $HOME_PATH"/.driver_analytics/mode" ]; then
+        if grep -q "BRIDGE_MODE=2" $HOME_PATH"/.driver_analytics/mode"; then
+            echo "BRIDGE_MODE=2 exists"
+            echo "Não precisa modificar regras UDEV"
+        else
+            check_udev_rules
+        fi
+    else
+        echo "File does not exist"
+    fi
+}
+
+check_udev_if_needed
+
+check_python_serial
 
 check_health_daemon_systemd
 
