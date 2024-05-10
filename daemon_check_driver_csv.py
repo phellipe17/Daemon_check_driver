@@ -616,16 +616,16 @@ def main():
     temperature= temp_system()
     macmac=get_mac()
     
-    with open(log_file_path, 'a') as file:
-        # file.write(f'\n\033[1;34;40m---Driver_analytics Health---\033[0m\nDate:\n\t- {current_time} \n'
-        file.write(f'\n---Driver_analytics Health---\nDate:\n\t- {current_time2} \n'
-                    f'Connection Analysis:\n\t- connection internet: {conncetion_chk}\n\t- Modem IP:{Process_modem}\n\t- Signal: {signal} \n\t- Status: {status} \n\t conection extra: {connect_ip} \n'
-                    f'SD Card Analysis:\n\t- Expanded:{total_size}\n\t- Free disk:{free_size} \n'
-                    f'GPS Analysis:\n\t- GPS Fix: {fix}\n\t- Signal Strength: {sig_str}  \n\t- Avaible Satellites: {sat_num} \n'
-                    f'Camera Analysis:\n\t- Detected: {detected}\n\t- Available: {available}\n'
-                    f'IMU Analysis:\n\t- Active: {imu}\n'
-                    f'System Analysis:\n\t- Swap usage: {swapa} \n\t- CPU Usage: {cpu} \n\t- ETH0 Interface: {interface_e} \n\t- WLAN Interface: {interface_wlan}\n\t'
-                    f'- USB LTE: {Lte} \n\t- USB ARD: {Ard}\n\t- Temperature: {temperature}\n\t- Mac Adress: {macmac}\n')
+    # with open(log_file_path, 'a') as file:
+    #     # file.write(f'\n\033[1;34;40m---Driver_analytics Health---\033[0m\nDate:\n\t- {current_time} \n'
+    #     file.write(f'\n---Driver_analytics Health---\nDate:\n\t- {current_time2} \n'
+    #                 f'Connection Analysis:\n\t- connection internet: {conncetion_chk}\n\t- Modem IP:{Process_modem}\n\t- Signal: {signal} \n\t- Status: {status} \n\t conection extra: {connect_ip} \n'
+    #                 f'SD Card Analysis:\n\t- Expanded:{total_size}\n\t- Free disk:{free_size} \n'
+    #                 f'GPS Analysis:\n\t- GPS Fix: {fix}\n\t- Signal Strength: {sig_str}  \n\t- Avaible Satellites: {sat_num} \n'
+    #                 f'Camera Analysis:\n\t- Detected: {detected}\n\t- Available: {available}\n'
+    #                 f'IMU Analysis:\n\t- Active: {imu}\n'
+    #                 f'System Analysis:\n\t- Swap usage: {swapa} \n\t- CPU Usage: {cpu} \n\t- ETH0 Interface: {interface_e} \n\t- WLAN Interface: {interface_wlan}\n\t'
+    #                 f'- USB LTE: {Lte} \n\t- USB ARD: {Ard}\n\t- Temperature: {temperature}\n\t- Mac Adress: {macmac}\n')
         
     # data_jotason = {
     #     "date": current_time,
@@ -668,7 +668,7 @@ def main():
     
     data = [
         ["counter", counter_ind],
-        ["Data", current_time2 ],
+        ["Data", current_time2.strip('\n')],
         ["ignition", ig],
         ["mode_aways_on", modee],
         ["connection_internet", conncetion_chk],

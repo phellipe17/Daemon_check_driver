@@ -748,7 +748,7 @@ def main():
         connect_extra= None
     
     #Verifica processos do modem
-    if AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE ==1: # 0 master com slave / 1 master sem slave / 2 e slave
+    if AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE ==1: # 0 master sem slave / 1 master com slave / 2 e slave
         Process_modem = chk_dial_modem()
         imu = imu_check()
         signal = modem_signal()
