@@ -697,8 +697,9 @@ def main():
     # Guardando os valores das variavel mode em config
     AS1_BRIDGE_MODE = int(config.get("BRIDGE_MODE", ""))
     AS1_CAMERA_TYPE = int(config.get("CAMERA_TYPE", ""))
-    AS1_NUMBER_OF_SLAVE_DEVICES = int(config.get("NUMBER_OF_SLAVE_DEVICES", ""))
+    # AS1_NUMBER_OF_SLAVE_DEVICES = int(config.get("NUMBER_OF_SLAVE_DEVICES", ""))
     AS1_ALWAYS_ON_MODE = config.get("ALWAYS_ON_MODE", "") if config.get("ALWAYS_ON_MODE", "") != "" else 0
+    AS1_NUMBER_OF_EXTRA_CAMERAS = int(config.get("NUMBER_OF_EXTRA_CAMERAS", "")) if config.get("NUMBER_OF_EXTRA_CAMERAS", "") != "" else 0
     
     # Verifica se não existe banco e tabela e cria os mesmos
     if AS1_CAMERA_TYPE == 0:
@@ -742,7 +743,7 @@ def main():
         fix, sig_str, sat_num = None,None,None
     
     # Verifica Camera extra
-    if AS1_NUMBER_OF_SLAVE_DEVICES >=2:
+    if AS1_NUMBER_OF_EXTRA_CAMERAS >0:
         connect_extra= check_ip_connectivity(ip_extra)
     else:
         connect_extra= None
