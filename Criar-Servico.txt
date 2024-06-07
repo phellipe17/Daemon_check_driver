@@ -11,11 +11,9 @@ StartLimitBurst=5
 Type=simple
 Restart=always
 RestartSec=300
-#ExecStartPre=/bin/bash -c 'sudo truncate -s 0 /var/log/checking_health.log && sudo truncate -s 0 /var/log/checking_health.err'
 ExecStart=/usr/bin/sudo /usr/bin/python3 /home/pi/.monitor/daemon_check_driver.py
-#ExecStartPost=/bin/bash -c 'sudo truncate -s 20M /var/log/checking_health.log'
-StandardOutput=file:/var/log/checking_health.log
-StandardError=file:/var/log/checking_health.err
+StandardOutput=append:/var/log/checking_health.log
+StandardError=append:/var/log/checking_health.err
 
 [Install]
 WantedBy=multi-user.target
