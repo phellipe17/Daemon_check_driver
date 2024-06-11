@@ -664,7 +664,9 @@ def main():
     Ard = chk_ttyARD()
     temperature= temp_system()
     macmac=get_mac()
-    
+    network_usage = get_network_usage()
+    voltage = check_voltage()
+    disk_io = get_disk_io()
     
     data = [
         ["counter", counter_ind],
@@ -693,7 +695,16 @@ def main():
         ["USB-LTE", Lte],
         ["USB_ARD", Ard], 
         ["Temperature", temperature],
-        ["Mac_Adress", macmac.strip()]
+        ["Mac_Adress", macmac.strip()],
+        ["Bytes_Sent", network_usage["bytes_sent"]],
+        ["Bytes_Received", network_usage["bytes_recv"]],
+        ["Voltage", voltage],
+        ["Disk_Read_Count", disk_io['read_count']],
+        ["Disk_Write_Count", disk_io['write_count']],
+        ["Disk_Read_Bytes", disk_io['read_bytes']],
+        ["Disk_Write_Bytes", disk_io['write_bytes']],
+        ["Disk_Read_Time", disk_io['read_time']],
+        ["Disk_Write_Time", disk_io['write_time']]
     ]
     with open(filename, mode='a', newline='') as file:
    
