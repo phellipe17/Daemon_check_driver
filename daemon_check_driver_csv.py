@@ -1,6 +1,6 @@
 import time
 import socket
-#import psutil
+import psutil
 import os
 import subprocess
 import serial
@@ -43,9 +43,10 @@ def imu_check():
     command2 = 'i2cdetect -y 1 | grep -ia 68'
     result, error=run_bash_command(command2)
     if (result != ''):
-        return color(' 1 ','green')
+        return ' 1 '
     else:
-        return color(' 0 ','red')
+        return '0'
+        
 
     # ---- Opcao 2 -----
     # bus_number = 1
@@ -60,32 +61,58 @@ def imu_check():
     #         if address != "--":
     #             print(f"Device detected at address {address} on bus {bus_number}")
 
-# capture_first_line(command): This function executes a shell command and captures its first line of output. 
-# It is designed to terminate the process after reading the first line.
-# def capture_first_line(command):
-#     first_line=''
-#     try:
-#         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, shell=True)
-#         lines= process.stdout.readlines()
-#         process.terminate()  # Encerra o processo após ler a primeira linha
-#         if lines:
-#             first_line= lines[0].strip()
-#             return first_line
-#         else:
-#             return ''
-#     except Exception as e:
-#         return f"Erro ao executar o comando: {str(e)}"
-    
-# def read_iccid():
-#     command_icc='sudo timeout 2 cat /dev/ttyUSB4 & sudo stty -F /dev/ttyUSB4 raw -echo & sudo echo -e "AT+CCID\r" > /dev/ttyUSB4'
-#     result, error=run_bash_command(command_icc)
-#     print(error)
-#     if 'OK' in result:
-#         return '\033[1;32;40mSim inserted\033[0m'
-#     else:
-#         return '\033[1;31;40mSim not inserted\033[0m'
-        
+# Verificações de Hardware ------------------------------------------------------------------------------
 
+def get_cpu_usage():
+    return psutil.cpu_percent(interval=1)
+
+def get_memory_usage():
+    mem = psutil.virtual_memory()
+    return mem.percent
+
+def get_disk_usage():
+    disk = psutil.disk_usage('/')
+    return disk.percent
+
+def get_disk_io():
+    disk_io = psutil.disk_io_counters()
+    return {'read_bytes': disk_io.read_bytes, 'write_bytes': disk_io.write_bytes}
+
+def get_temperature():
+    try:
+        temp_output = subprocess.check_output(['vcgencmd', 'measure_temp']).decode()
+        temp = float(temp_output.split('=')[1].split("'")[0])
+        return temp
+    except:
+        return None
+
+def get_network_usage():
+    net_io = psutil.net_io_counters()
+    return {'bytes_sent': net_io.bytes_sent, 'bytes_recv': net_io.bytes_recv}
+
+def get_system_uptime():
+    uptime_seconds = os.popen('awk \'{print $1}\' /proc/uptime').read().strip()
+    return float(uptime_seconds) / 3600  # Convert to hours
+
+def check_voltage():
+    try:
+        voltage_output = subprocess.check_output(['vcgencmd', 'measure_volts']).decode()
+        voltage = float(voltage_output.split('=')[1].strip('V\n'))
+        return voltage
+    except:
+        return None
+
+def get_disk_io():
+    disk_io = psutil.disk_io_counters()
+    return {
+        'read_count': disk_io.read_count,
+        'write_count': disk_io.write_count,
+        'read_bytes': disk_io.read_bytes,
+        'write_bytes': disk_io.write_bytes,
+        'read_time': disk_io.read_time,
+        'write_time': disk_io.write_time
+    }
+#--------------------------------------------------------------------------------------------
 
 # check_internet(): This function checks for internet connectivity by attempting to create a connection to 
 # www.google.com. It returns True if the connection is successful and False otherwise.
@@ -94,9 +121,9 @@ def check_internet():
     try:
         # Tente fazer uma conexão com um servidor remoto (por exemplo, o Google)
         socket.create_connection(("www.google.com", 80))
-        return color(' 1 ','green')
+        return '1'
     except OSError:
-        return color(' 0 ','red')
+        return '0'
 
 
 def check_ip_connectivity(ip_address):
@@ -104,10 +131,10 @@ def check_ip_connectivity(ip_address):
     try:
         # Tente fazer uma conexão com o IP fornecido na porta 80 (HTTP)
         socket.create_connection((ip_address, 80))
-        return color(' 1 ','green') # Supondo que 'color()' é uma função que formata a saída com cores
+        return '1'
     except OSError:
-        return color(' 0 ','red')
- 
+        return '0'
+     
 # get_machine_storage(): This function calculates and returns the total and free storage space on the root filesystem. 
 # If the total storage is less than 10 GB, it attempts to expand the root filesystem and requests a reboot.
 def get_machine_storage():
@@ -125,14 +152,14 @@ def get_machine_storage():
     total_size = round(total_size)
     free_size = round(free_size)
     if (total_size > 10):
-        total_size_status = color(' 1 ','green')
+        total_size_status =' 1 '
     else:
-        total_size_status = color(' 0 ','red')
+        total_size_status = ' 0 '
 
     if (free_size < 0.05 * total_size):
-        free_size_status = color(' 0 ','red')
+        free_size_status = ' 0 '
     else:
-        free_size_status = color(' 1 ','green')
+        free_size_status = ' 1 '
     return total_size_status, free_size_status,total_size
 
 # clear_log_file(log_file_path): This function clears the contents of a log file specified by log_file_path.
@@ -214,27 +241,28 @@ def chk_gps3():
     sig_str = 0
 
     if avg_fix > 2 and validity_status == 'A':
-        fix = color("3D", "green")
+        fix= "3D"
     elif avg_fix <= 2 and validity_status == 'A':
-        fix = color("2D", "yellow")
+        fix= "2D"
     else:
-        fix = color("No Fix", "red")
+        fix = "No Fix"
+        
 
     if snr_values:
         if avg_snr >= 35:
-            sig_str = color(f"{avg_snr:.2f}", "green")
+            sig_str = f"{avg_snr:.2f}"
         elif avg_snr >= 25:
-            sig_str = color(f"{avg_snr:.2f}", "yellow")
+            sig_str = f"{avg_snr:.2f}"
         else:
-            sig_str = color(f"{avg_snr:.2f}", "red")
+            sig_str = f"{avg_snr:.2f}"
 
     if num_satellites is not None:
         if avg_num_satellites >= 8:
-            sat_num = color(f"{avg_num_satellites:.0f}", "green")
+            sat_num = f"{avg_num_satellites:.0f}"
         elif avg_num_satellites >= 5:
-            sat_num = color(f"{avg_num_satellites:.0f}", "yellow")
+            sat_num =f"{avg_num_satellites:.0f}"
         else:
-            sat_num = color(f"{avg_num_satellites:.0f}", "red")
+            sat_num = f"{avg_num_satellites:.0f}"
     
     return fix, sig_str, sat_num
     
@@ -243,45 +271,45 @@ def chk_dial_modem():
     modem_command = 'ip addr | grep -ia ppp0'
     result, error=run_bash_command(modem_command)
     if(result != ''):
-        return color(' 1 ','green')
+        return ' 1 '
     else:
-        return color(' 0 ','red')
+        return ' 0 '
 
 def chk_wlan_interface():
     log("teste wlan")
     wlan_command = 'ip addr show wlan0'
     result, error = run_bash_command(wlan_command)
     if 'UP' in result:
-        return color(' 1 ','green')
+        return ' 1 '
     else:
-        return color(' 0 ','red')
+        return ' 0 '
 
 def chk_ethernet_interface():
     log("teste ethernet")
     eth_command = 'ip addr show eth0'
     result, error = run_bash_command(eth_command)
     if 'UP' in result:
-        return color(' 1 ','green')
+        return ' 1 '
     else:
-        return color(' 0 ','red')
+        return ' 0 '
 
 def chk_ttyLTE():
     log("teste conexao modem")
     command = 'ls /dev/'
     result,error = run_bash_command(command)
     if 'ttyLTE' in result:
-        return color('1','green')
+        return '1'
     else:
-        return color('0','red')
+        return '0'
 
 def chk_ttyARD():
     log("teste display")
     command = 'ls /dev/'
     result,error = run_bash_command(command)
     if 'ttyARD' in result:
-        return color('1','green')
+        return '1'
     else:
-        return color('0','red')
+        return '0'
 
 
 def send_serial_command(command):
@@ -324,13 +352,13 @@ def modem_signal():
     if len(result2)>0:
         signal_strength=float(result2.replace(',','.'))
         if(signal_strength==99):
-            return color('0','magenta')
+            return '0'
         elif(signal_strength>=31):
-            return color(' 1 ','green')
+            return ' 1 '
         elif(signal_strength<31 and signal_strength>=2):
-            return color(' 1 ','yellow')
+            return ' 1 '
         elif(signal_strength<2 and  signal_strength>=0):
-            return color(' 0 ','red')
+            return ' 0 '
     else:
         return 0
 
@@ -340,9 +368,9 @@ def modem_status():
     result = send_serial_command(text_status)
     result2 = result.split(":")[1].strip()
     if "ok" in result2.lower():
-        return color(' 1 ','green')
+        return ' 1 '
     elif "error" in result2.lower():
-        return color(' 0 ','red')
+        return ' 0 '
     else:
         return "Undefined"
     
@@ -352,9 +380,9 @@ def get_ccid():
     # print(result)
     ccid = result.split("\n")[1].split(" ")[1]
     if 'OK' in result and ccid:
-        return color(f' Sim inserted - CCID: {ccid}', 'green')
+        return f' Sim inserted - CCID: {ccid}'
     else:
-        return color(' Sim not inserted', 'red')
+        return ' Sim not inserted'
 
 #checa se é possivel tirar um frame com a camera para testar se ela esta funcionando
 # def check_camera_status():
@@ -369,9 +397,9 @@ def check_camera_status():
     log("teste camera")
     command_frame="tail -n10 /home/pi/.driver_analytics/logs/current/camera.log"
     result, error=run_bash_command(command_frame)
-    available=color(" 1 ","green")
+    available= " 1 "
     if "Error opening the camera" in result:
-        available = color(" 0 ", "red")
+        available = " 0 "
     else:
         last_log_line=run_bash_command('tail -n2 /home/pi/.driver_analytics/logs/current/camera.log')
         data_hora_ultima_msg_str = str(last_log_line).split(']')[0].strip('[')[-19:]
@@ -379,12 +407,12 @@ def check_camera_status():
         # Calcular a diferença de tempo
         diferenca_tempo = time.time() - timestamp_ultima_msg
         if(diferenca_tempo>60):
-            available=color(" 0 ","red")
+            available=" 0 "
         #print("Diferença de tempo:", round(diferenca_tempo), "segundos")
 
     command = "vcgencmd get_camera"
     output, error = run_bash_command(command)
-    detected = color(" 1 ", "green") if "detected=1" in output else color(" 0 ", "red")
+    detected =" 1 " if "detected=1" in output else " 0 "
     
         
     return detected, available
@@ -394,14 +422,14 @@ def check_camera_status():
 def check_camera_status2():
     try:
        subprocess.run(["raspistill", "-o", "/tmp/camera_test.jpg", "-w", "640", "-h", "480"], check=True,stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-       available = color(" YES ", "green")
+       available = " YES "
     except subprocess.CalledProcessError as e:
-       available = color(f" NO - error no:({e.returncode})", "red")
+       available = f" NO - error no:({e.returncode})"
     
     command = "vcgencmd get_camera"
     output, error = run_bash_command(command)
-    detected = color(" YES ", "green") if "detected=1" in output else color(" NO ", "red")
-    connected = color(" YES ", "green") if "supported=1" in output else color(" NO ", "red")
+    detected = " YES ", "green" if "detected=1" in output else " NO "
+    connected = " YES " if "supported=1" in output else " NO "
         
     return detected, connected, available  
 
@@ -411,9 +439,9 @@ def swap_memory():
     output, error = run_bash_command(command)
     
     if error:
-        return color(f" Error: {error} ", "red")
+        return f" Error: {error} "
     else:
-        return color(f" {output}", "green")
+        return " {output}"
     
 
 def usage_cpu():
@@ -424,30 +452,30 @@ def usage_cpu():
     idle_time = float(output.strip().replace(',', '.'))
     usage = 100 - idle_time
     if error:
-        return color(f" Error: {error} ", "red")
+        return f" Error: {error} "
     else:
         if idle_time >= 80:
-            return color(f" {usage}% ", "green")
+            return f" {usage}% "
         elif idle_time >= 50:
-            return color(f" {usage}% ", "yellow")
+            return f" {usage}% "
         elif idle_time >= 20:
-            return color(f" {usage}% ", "magenta")
+            return f" {usage}% "
         elif idle_time < 20:
-            return color(f" {usage}% ", "red")
+            return f" {usage}% "
         
 def temp_system():
     command = "cat /sys/class/thermal/thermal_zone0/temp"
     output, error = run_bash_command(command)
     tempe=round(int(output)/1000)
     if error:
-        return color(f" Error: {error} ", "red")
+        return f" Error: {error} "
     else:
         if tempe >= 80:
-            return color(f"{tempe}°", "red")
+            return f"{tempe}°"
         elif tempe >= 60 & tempe <80:
-            return color(f"{tempe}°", "yellow")
+            return f"{tempe}°"
         elif tempe<60:
-            return color(f"{tempe}°", "green")
+            return f"{tempe}°"
 
 def get_mac():
     command = "ifconfig eth0 | grep -oE '([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}'"

@@ -102,120 +102,74 @@ def clear_log_file(log_file_path):
     with open(log_file_path, 'w') as file:
         file.write("") 
 
-def open_gps_device(serial_port, baudrate, cold_start):
-    def log_info(message):
-        print(f"INFO: {message}")
-    
-    def log_error(message):
-        print(f"ERROR: {message}")
-
-    def log_warn(message):
-        print(f"WARNING: {message}")
-
-    # Desconectar e conectar novamente ao dispositivo serial
+def open_serial_connection(port, baudrate):
     try:
-        ser = serial.Serial(serial_port, baudrate, timeout=1)
+        ser = serial.Serial(port, baudrate, timeout=1)
+        print(f"Port {port} opened successfully")
+        return ser
+    except serial.SerialException as e:
+        print(f"Error opening port {port}: {e}")
+        return None
+
+def close_serial_connection(ser):
+    if ser.is_open:
         ser.close()
-        time.sleep(1)
-        ser.open()
-    except serial.SerialException as e:
-        log_error(f"can't open device: {e}")
-        exit(1)
-    
-    # Configurar a taxa de baud
+        print(f"Port {ser.port} closed successfully")
+
+def set_gps_baudrate(ser, baudrate=115200):
     try:
-        ser.baudrate = 115200
-        log_info(f"Set GPS baudrate to: {115200} kbps")
+        ser.write(f"$PMTK251,{baudrate}*1F\r\n".encode())
+        time.sleep(1)  # Aguarde para que o comando seja processado
+        ser.baudrate = baudrate
+        print(f"Set GPS baudrate to: {baudrate} kbps")
     except serial.SerialException as e:
-        log_warn(f"Error setting GPS baudrate to: {115200} kbps: {e}")
-    
-    # Cold start, se necessário
-    if cold_start == 1:
-        try:
-            ser.write(b'$PMTK104*37\r\n')  # Cold start command for Quectel GPS
-            log_info("Set cold start mode.")
-        except serial.SerialException as e:
-            log_warn(f"Error setting cold start mode: {e}")
-        time.sleep(5)
-    
-    # Configurar o modo GNSS
+        print(f"Error setting GPS baudrate: {e}")
+
+def set_gnss_mode(ser):
     try:
-        ser.write(b'$PMTK353,1,1,1,1,0*2B\r\n')  # GNSS command for Quectel GPS
-        log_info("Set GNSS mode.")
+        ser.write(b"$PMTK353,1,1,1,1,0*2B\r\n")  # Comando para definir o modo GNSS
+        time.sleep(1)  # Aguarde para que o comando seja processado
+        print("Set GNSS mode")
     except serial.SerialException as e:
-        log_warn(f"Error setting GNSS mode: {e}")
-    time.sleep(5)
-    
-    # Configurar a taxa de atualização do GPS
-    device_frequency = 1  # Defina a taxa de atualização adequada
-    try:
-        ser.write(f'$PMTK220,{device_frequency * 1000}*1F\r\n'.encode())  # GPS rate command
-        log_info(f"Set GPS rate to: {device_frequency} Hz")
-    except serial.SerialException as e:
-        log_warn(f"Error setting GPS rate to: {device_frequency} Hz: {e}")
-    time.sleep(5)
-    return ser
+        print(f"Error setting GNSS mode: {e}")
 
-def parse_nmea_sentence(sentence):
-    parts = sentence.split(',')
-    data = {}
-
-    if sentence.startswith('$GPGGA') or sentence.startswith('$GNGGA'):
-        data['type'] = 'GGA'
-        data['time'] = parts[1]
-        data['latitude'] = convert_to_degrees(parts[2])
-        data['lat_direction'] = parts[3]
-        data['longitude'] = convert_to_degrees(parts[4])
-        data['lon_direction'] = parts[5]
-        data['num_satellites'] = int(parts[7])
-        data['altitude'] = parts[9]
-
-    elif sentence.startswith('$GPRMC') or sentence.startswith('$GNRMC'):
-        data['type'] = 'RMC'
-        data['time'] = parts[1]
-        data['status'] = parts[2]
-        data['latitude'] = convert_to_degrees(parts[3])
-        data['lat_direction'] = parts[4]
-        data['longitude'] = convert_to_degrees(parts[5])
-        data['lon_direction'] = parts[6]
-        data['speed'] = parts[7]
-        data['course'] = parts[8]
-        data['date'] = parts[9]
-
-    return data
-
-def convert_to_degrees(value):
-    if value:
-        degrees = int(float(value) / 100)
-        minutes = float(value) - degrees * 100
-        return degrees + minutes / 60
-    return 0.0
-
-def read_gps_data(serial_port, num_lines=20):
+def read_gps_data(ser, duration=2):
+    start_time = time.time()
     gps_data = []
-    lines_read = 0
-    while lines_read < num_lines:
+    
+    while (time.time() - start_time) < duration:
         try:
-            print("vai tentar comunicar agora")
-            line = serial_port.readline().decode('utf-8', errors='ignore')
-            print("leu a linha")
+            line = ser.readline().decode('utf-8', errors='ignore').strip()
             if line:
-                data = parse_nmea_sentence(line)
-                if data:
-                    gps_data.append(data)
-                    print(f"Dados do GPS: {data}")
-                    lines_read += 1
+                print(f"Received line: {line}")
+                gps_data.append(line)
         except serial.SerialException as e:
             print(f"Error reading from serial port: {e}")
             break
     return gps_data
 
-def initialize_and_read_gps(serial_port, baudrate=9600, cold_start=1,num_lines=20):
-    ser = open_gps_device(serial_port, baudrate, cold_start)
-    gps_data = read_gps_data(ser, num_lines)
-    print(gps_data)
-    ser.close()
-    return gps_data
+def parse_gps_data(gps_data):
+    num_satellites = 0
+    signal_quality = 0
+    
+    for line in gps_data:
+        if line.startswith('$GPGSV'):
+            parts = line.split(',')
+            try:
+                num_satellites = int(parts[3])
+                for i in range(7, len(parts), 4):
+                    if i < len(parts) and parts[i].isdigit():
+                        signal_quality = max(signal_quality, int(parts[i]))
+            except (ValueError, IndexError):
+                continue
+        elif line.startswith('$GPGGA'):
+            parts = line.split(',')
+            try:
+                num_satellites = int(parts[7])
+            except (ValueError, IndexError):
+                continue
+    
+    return num_satellites, signal_quality
   
 
 def chk_gps3():
@@ -813,11 +767,34 @@ def create_connection(db_file):
 
     return conn
 
+def initialize_and_read_gps(port, baudrate, final_baudrate):
+    ser = open_serial_connection(port, baudrate)
+    if ser:
+        # Configurar baudrate e GNSS
+        set_gps_baudrate(ser, final_baudrate)
+        set_gnss_mode(ser)
+        
+        # Fechar e reabrir a conexão serial com o baudrate atualizado
+        close_serial_connection(ser)
+        time.sleep(1)  # Aguarde um segundo antes de reabrir
+        ser = open_serial_connection(port, final_baudrate)
+    
+    if ser:
+        gps_data = read_gps_data(ser, duration=3)
+        num_satellites, signal_quality = parse_gps_data(gps_data)
+        
+        print(f"Number of satellites: {num_satellites}")
+        print(f"Signal quality: {signal_quality}")
+        
+        close_serial_connection(ser)
+        
+    return gps_data
+
 def main():
     # print("Passei aqui.." + current_time_pi())
-    serial_port = "/dev/serial0"  # Defina a porta serial correta
-    baudrate = 9600
-    cold_start = 1  # Defina o valor adequado para cold_start
+    port = '/dev/serial0'
+    baudrate = 9600  # Inicialmente abrir com 9600 para enviar comandos
+    final_baudrate = 115200  # Baudrate desejado
     path_e=''
     filename="/home/pi/.driver_analytics/mode"
     config=load_config(filename) 
@@ -843,21 +820,30 @@ def main():
     
     api_thread = threading.Thread(target=enviar_para_api, args=(path_e,pathdriver))
     api_thread.start() # Inicia a thread de postar na api
-    gps_data = initialize_and_read_gps(serial_port, baudrate, cold_start)
-    for data in gps_data:
-        print(data)
+    gps_data = initialize_and_read_gps(port, baudrate,final_baudrate)
+    # for data in gps_data:
+    #     print(data)
     ig = checking_ignition() # checa ignição
     current_time = current_time_pi() # busca data em que foi rodado o script
     total_size,free_size,size = get_machine_storage() #busca informações de armazenamento
+    
     if(ig == 1):
         print("Ignição ligada, Sem verificacao de foto com raspistill...") 
         detected,available = check_camera_status() # detecta e verifica o camera
+        
+        # Verifica GPS
+        if(AS1_CAMERA_TYPE==0):
+            fix, sig_str, sat_num = chk_gps3() # modificado para teste
+        else:
+            fix, sig_str, sat_num = None,None,None
     else:
-        print("Ignição desligada, checando foto com raspistill...")
+        print("Ignição desligada, checando foto com raspistill e gps...")
         comandext = "sudo pkill camera"
         out1=run_bash_command(comandext)
         print(out1)
         detected,available = check_camera_status2() # detecta e verifica o camera
+        
+        
     conncetion_chk = check_internet() # verifica se tem conexão com a internet
     swapa = swap_memory() # Verifica se esta tendo swap de memoria
     cpu = usage_cpu() # % Verifica uso da cpu
@@ -876,12 +862,6 @@ def main():
     
     # Verifica modo ALWAYS ON
     modee=AS1_ALWAYS_ON_MODE if AS1_ALWAYS_ON_MODE != '' else 0
-    
-    # Verifica GPS
-    if(AS1_CAMERA_TYPE==0):
-        fix, sig_str, sat_num = 3, 0, 0 # modificado para teste
-    else:
-        fix, sig_str, sat_num = None,None,None
     
     # Verifica Camera extra
     if AS1_NUMBER_OF_EXTRA_CAMERAS >0:
