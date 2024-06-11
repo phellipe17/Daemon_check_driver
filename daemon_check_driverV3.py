@@ -388,7 +388,7 @@ def usage_cpu():
     idle_time = float(output.strip().replace(',', '.'))
     usage = 100 - idle_time
     
-    return f" {usage}% " if not error else f"Error: {error}"
+    return f" {usage:.2f}% " if not error else f"Error: {error}"
             
 def temp_system():
     command = "cat /sys/class/thermal/thermal_zone0/temp"

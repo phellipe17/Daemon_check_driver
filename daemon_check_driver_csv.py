@@ -441,27 +441,16 @@ def swap_memory():
     if error:
         return f" Error: {error} "
     else:
-        return " {output}"
+        return f"{output}%"
     
 
 def usage_cpu():
-    log("teste uso cpu")
-    # command = "top -b -n 1 | awk '/%CPU/ {print 100 - $8"%"}'"
     command = "top -bn1 | grep '^%Cpu(s)' | awk '{print $8}'"                                                     
     output, error = run_bash_command(command)
     idle_time = float(output.strip().replace(',', '.'))
     usage = 100 - idle_time
-    if error:
-        return f" Error: {error} "
-    else:
-        if idle_time >= 80:
-            return f" {usage}% "
-        elif idle_time >= 50:
-            return f" {usage}% "
-        elif idle_time >= 20:
-            return f" {usage}% "
-        elif idle_time < 20:
-            return f" {usage}% "
+    
+    return f" {usage:.2f}% " if not error else f"Error: {error}"
         
 def temp_system():
     command = "cat /sys/class/thermal/thermal_zone0/temp"
@@ -607,6 +596,38 @@ def current_time_pi():
     command="date +'%Y/%m/%d %H:%M:%S'"
     output,error = run_bash_command(command)
     return output
+
+def check_error_dmesg():
+    
+    # command = "dmesg | grep -ia "+comandodo
+    command="dmesg | grep -ia error"
+    command2="dmesg | grep -ia over-current"
+    command3="dmesg | grep -ia Under-voltage"
+    command4="dmesg | grep -ia usb-bad cable"
+    output, error = run_bash_command(command)
+    output2, error2 = run_bash_command(command2)
+    output3, error3 = run_bash_command(command3)
+    output4, error4 = run_bash_command(command4)
+    
+    if output != "":
+        return 1
+    elif output2 != "":
+        return 2
+    elif output3 != "":
+        return 3
+    elif output4 != "":
+        return 4
+    else:
+        return 0
+    
+def send_csv_to_api(file_path, url,message):
+    with open(file_path, 'rb') as file:
+        files = {'file': file}
+        data = {'message': message}
+        response = requests.post(url, files=files, data=data)
+        return response
+        
+    
         
 
 def main():
@@ -644,55 +665,6 @@ def main():
     temperature= temp_system()
     macmac=get_mac()
     
-    # with open(log_file_path, 'a') as file:
-    #     # file.write(f'\n\033[1;34;40m---Driver_analytics Health---\033[0m\nDate:\n\t- {current_time} \n'
-    #     file.write(f'\n---Driver_analytics Health---\nDate:\n\t- {current_time2} \n'
-    #                 f'Connection Analysis:\n\t- connection internet: {conncetion_chk}\n\t- Modem IP:{Process_modem}\n\t- Signal: {signal} \n\t- Status: {status} \n\t conection extra: {connect_ip} \n'
-    #                 f'SD Card Analysis:\n\t- Expanded:{total_size}\n\t- Free disk:{free_size} \n'
-    #                 f'GPS Analysis:\n\t- GPS Fix: {fix}\n\t- Signal Strength: {sig_str}  \n\t- Avaible Satellites: {sat_num} \n'
-    #                 f'Camera Analysis:\n\t- Detected: {detected}\n\t- Available: {available}\n'
-    #                 f'IMU Analysis:\n\t- Active: {imu}\n'
-    #                 f'System Analysis:\n\t- Swap usage: {swapa} \n\t- CPU Usage: {cpu} \n\t- ETH0 Interface: {interface_e} \n\t- WLAN Interface: {interface_wlan}\n\t'
-    #                 f'- USB LTE: {Lte} \n\t- USB ARD: {Ard}\n\t- Temperature: {temperature}\n\t- Mac Adress: {macmac}\n')
-        
-    # data_jotason = {
-    #     "date": current_time,
-    #     "connection_analysis":
-    #      {
-    #         "connection_internet": conncetion_chk,
-    #         "Modem_IP": Process_modem,
-    #         "Signal": signal,
-    #         "Status": status,
-    #         "conection extra": connect_ip
-    #     },
-    #     "SD_Card_Analysis": {
-    #         "Expanded": total_size,
-    #         "Free_disk": free_size
-    #     },
-    #     "GPS_Analysis": {
-    #         "GPS_Fix": fix,
-    #         "Signal_Strength": sig_str,
-    #         "Avaible_Satellites": sat_num
-    #     },
-    #     "Camera_Analysis": {
-    #         "Detected": detected,
-    #         "Available": available
-    #     },
-    #     "IMU_Analysis": {
-    #         "Active": imu
-    #     },
-    #     "System_Analysis": {
-    #         "Swap_usage": swapa,
-    #         "CPU_Usage": cpu,
-    #         "ETH0_Interface": interface_e,
-    #         "WLAN_Interface": interface_wlan,
-    #         "USB_LTE": Lte,
-    #         "USB_ARD": Ard,
-    #         "Temperature": temperature,
-    #         "Mac_Adress": macmac
-    #     }   
-        
-    # }
     
     data = [
         ["counter", counter_ind],
@@ -740,13 +712,30 @@ def main():
         
         writer.writerow(stats)
     incrementar_contador_e_usar()
-        
-    # json_data= json.dumps(data_jotason)
-    # print(json_data)
-    # headers = {'Content-Type': 'application/json'}
-    # url="https://9a61-131-255-22-153.ngrok-free.app/heartbeat"
-    # response = requests.post(url, data=json_data, headers=headers)
-    # print(response)
+    answer=""
+    var = check_error_dmesg()
+    if(var >= 0 ):
+        #sending Json--------------------------------------    
+        # json_data= json.dumps(data_jotason)
+        # print(json_data)
+        # headers = {'Content-Type': 'application/json'}
+        # url="https://9a61-131-255-22-153.ngrok-free.app/heartbeat"
+        # response = requests.post(url, data=json_data, headers=headers)
+        # print(response)
+        #----------------------------------------------------
+        if(var == 1):
+            answer=" General Error in dmesg"
+        elif(var == 2):
+            answer=" Over-current in dmesg"
+        elif(var == 3):
+            answer=" Under-voltage in dmesg"
+        elif(var == 4):
+            answer=" Bad cable in dmesg"
+        #sending csv----------------------------------------
+        url="https://e50e-131-255-23-67.ngrok-free.app/heartbeat"
+        response = send_csv_to_api(filename, url, answer)
+        print(response)
+        #----------------------------------------------------
                
 
 
