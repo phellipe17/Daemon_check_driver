@@ -7,6 +7,8 @@ import serial
 import json, requests
 import csv
 import smtplib
+import sqlite3
+from sqlite3 import Error
 
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -17,6 +19,7 @@ from email import encoders
 directory_path = '/home/pi/.driver_analytics/logs/current/'
 r = requests.session()
 DEBUG = False
+pathdriver="/home/pi/.driver_analytics/database/driveranalytics.db"
 
 #from daemonize import Daemonize
 daemon_name = 'chk_status'
@@ -173,10 +176,6 @@ def clear_log_file(log_file_path):
     with open(log_file_path, 'w') as file:
         file.write("") 
 
-
-# chk_gps(): This function checks the GPS status by running a command that reads data from the /dev/serial0
-# device and checks if the first line contains the string "$GNGSA,A,3." It returns "GPS ON" if the condition
-# is met, otherwise "GPS OFF."
     
 #Cheking gps health with bytes
 # def chk_gps2():
@@ -390,15 +389,6 @@ def get_ccid():
     else:
         return ' Sim not inserted'
 
-#checa se é possivel tirar um frame com a camera para testar se ela esta funcionando
-# def check_camera_status():
-#    try:
-#       subprocess.run(["raspistill", "-o", "/tmp/camera_test.jpg", "-w", "640", "-h", "480"], check=True,stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-#       return color(" OK ", "green")
-#    except subprocess.CalledProcessError as e:
-#       return color(f" ERROR({e.returncode})", "red")
-   
-#    inclusao de verificacao se camera está conectada e pronta para uso
 def check_camera_status():
     log("teste camera")
     command_frame="tail -n10 /home/pi/.driver_analytics/logs/current/camera.log"
@@ -423,21 +413,19 @@ def check_camera_status():
         
     return detected, available
 
-
-
-def check_camera_status2():
-    try:
-       subprocess.run(["raspistill", "-o", "/tmp/camera_test.jpg", "-w", "640", "-h", "480"], check=True,stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-       available = " YES "
-    except subprocess.CalledProcessError as e:
-       available = f" NO - error no:({e.returncode})"
+# def check_camera_status2():
+#     try:
+#        subprocess.run(["raspistill", "-o", "/tmp/camera_test.jpg", "-w", "640", "-h", "480"], check=True,stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+#        available = " YES "
+#     except subprocess.CalledProcessError as e:
+#        available = f" NO - error no:({e.returncode})"
     
-    command = "vcgencmd get_camera"
-    output, error = run_bash_command(command)
-    detected = " YES ", "green" if "detected=1" in output else " NO "
-    connected = " YES " if "supported=1" in output else " NO "
+#     command = "vcgencmd get_camera"
+#     output, error = run_bash_command(command)
+#     detected = " YES ", "green" if "detected=1" in output else " NO "
+#     connected = " YES " if "supported=1" in output else " NO "
         
-    return detected, connected, available  
+#     return detected, connected, available  
 
 def swap_memory():
     log("teste swap memoria")
@@ -632,6 +620,55 @@ def send_csv_to_api(file_path, url,message):
         data = {'message': message}
         response = requests.post(url, files=files, data=data)
         return response
+
+# function to create a connection with database
+def create_connection(db_file):
+    """ create a database connection to the SQLite database
+        specified by the db_file
+    :param db_file: database file
+    :return: Connection object or None
+    """
+    conn = None
+    try:
+        conn = sqlite3.connect(db_file)
+    except Error as e:
+        log(e)
+
+    return conn
+
+# function to select a field from a database    
+def select_field_from_table(conn, field, table):
+    cur = conn.cursor()
+
+    command_sql = "SELECT " + field +  " from " + table + " LIMIT 1"
+
+    cur.execute(command_sql)
+
+    value = cur.fetchone()
+
+    log(value[0])
+
+    user_ret = value[0]
+
+    log(type(user_ret))
+
+    if (type(user_ret) is str):
+        log("type is string")
+    elif (type(user_ret) is bytes):
+        log("type is bytes")
+        user_ret = user_ret.decode("utf-8")
+    else:
+        user_ret = str(user_ret)        
+
+    return user_ret
+
+def load_config(filename):
+    config = {}
+    with open(filename) as f:
+        for line in f:
+            key, value = line.strip().split("=")
+            config[key] = value
+    return config
         
 def send_email_message(placa, mode="cdl", csv_file_path=None, error_message=None):
 
@@ -682,53 +719,112 @@ def send_email_message(placa, mode="cdl", csv_file_path=None, error_message=None
 
 def main():
     #log_file_path = f'/home/pi/.monitor/logs/current/{daemon_name}.log'
-    log_file_path = '/var/log/checking_health.log'
+    # log_file_path = '/var/log/checking_health.log'
+    conn = create_connection(pathdriver)
+    filename="/home/pi/.driver_analytics/mode"
     filename = "/home/pi/.driver_analytics/logs/driver_analytics_health.csv"
-    counter_ind=inicializar_contador()
-    # desired_size_bytes = 2 * 1024 * 1024
+    config=load_config(filename) 
+    counter_id=inicializar_contador()
     ip_extra="10.0.89.11"
     ip_interna="10.0.90.196"
-    ig = checking_ignition()
-    #clear_log_file(log_file_path)  # Apaga o conteúdo do arquivo de log ao iniciar
-    # current_time = time.strftime('%Y-%m-%d %H:%M:%S')
-    current_time2=current_time_pi()
-    if(ig):
-        connect_int = check_ip_connectivity(ip_interna)
+    ip_externa="10.0.90.195"
+    
+    # Guardando os valores das variavel mode em config
+    AS1_BRIDGE_MODE = int(config.get("BRIDGE_MODE", ""))
+    AS1_CAMERA_TYPE = int(config.get("CAMERA_TYPE", ""))
+    # AS1_NUMBER_OF_SLAVE_DEVICES = int(config.get("NUMBER_OF_SLAVE_DEVICES", ""))
+    AS1_ALWAYS_ON_MODE = config.get("ALWAYS_ON_MODE", "") if config.get("ALWAYS_ON_MODE", "") != "" else 0
+    AS1_NUMBER_OF_EXTRA_CAMERAS = int(config.get("NUMBER_OF_EXTRA_CAMERAS", "")) if config.get("NUMBER_OF_EXTRA_CAMERAS", "") != "" else 0
+    
+    #conecta ao banco e pega placa do veículo
+    with conn:
+         vehicle_plate = select_field_from_table(conn, "placa", "vehicle_config")
+    
+    
+    # Verifica GPS
+    if(AS1_CAMERA_TYPE==0):
+        fix, sig_str, sat_num = chk_gps3() # modificado para teste
     else:
-        connect_int=0
-    modee=checking_mode()
-    total_size,free_size,size = get_machine_storage()
-    fix, sig_str, sat_num = chk_gps3()
+        fix, sig_str, sat_num = None,None,None
+    
+    # Verifica conexão com interna ou externa
+    if AS1_CAMERA_TYPE == 0:
+        connect_int_ext = check_ip_connectivity(ip_interna)
+    elif AS1_CAMERA_TYPE ==1:
+        connect_int_ext = check_ip_connectivity(ip_externa)
+    else:
+        connect_int_ext=None
+        
+    # Verifica modo ALWAYS ON
+    modee=AS1_ALWAYS_ON_MODE if AS1_ALWAYS_ON_MODE != '' else 0
+    
+    # Verifica Camera extra
+    if AS1_NUMBER_OF_EXTRA_CAMERAS >0:
+        connect_extra= check_ip_connectivity(ip_extra)
+    else:
+        connect_extra= None
+    
+    # Verifica modo ALWAYS ON
+    modee=AS1_ALWAYS_ON_MODE if AS1_ALWAYS_ON_MODE != '' else 0
+    
+    # Verifica Camera extra
+    if AS1_NUMBER_OF_EXTRA_CAMERAS >0:
+        connect_extra= check_ip_connectivity(ip_extra)
+    else:
+        connect_extra= None
+    
+    #Verifica processos do modem
+    if AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE ==1: # 0 master sem slave / 1 master com slave / 2 e slave
+        Process_modem = chk_dial_modem()
+        imu = imu_check()
+        signal = modem_signal()
+        status = modem_status()
+        Lte = chk_ttyLTE()
+    else:
+       Process_modem = None
+       imu = None
+       signal = None
+       status = None
+       Lte = None
+    
+    # Verifica Display
+    if AS1_CAMERA_TYPE == 0:
+        Ard = chk_ttyARD()
+    else:
+        Ard = None
+    
+    # Verificação geral raspberry
+    current_time2=current_time_pi()#Pega a hora atual
+    ig = checking_ignition()#Verifica se a ignição esta ligada
+    modee=checking_mode()#Identifica o modo de operação
+    total_size,free_size,size = get_machine_storage()#Verifica info do disco
+    conncetion_chk = check_internet() # verifica se tem conexão com a internet
+    swapa = swap_memory() # Verifica se esta tendo swap de memoria
+    cpu = usage_cpu() # % Verifica uso da cpu
+    interface_e = chk_ethernet_interface() # Verifica se existe porta ethernet
+    interface_wlan = chk_wlan_interface() # Verifica se o wifi esta funcional
+    temperature= temp_system() # Verifica temperatura do sistema
+    macmac=get_mac() # Verifica o mac adress
     detected,available = check_camera_status()
-    conncetion_chk = check_internet()
-    connect_ip= check_ip_connectivity(ip_extra)
-    Process_modem = chk_dial_modem()
-    imu = imu_check()
-    signal = modem_signal()
-    status = modem_status()
-    swapa = swap_memory()
-    cpu = usage_cpu()
-    interface_e = chk_ethernet_interface()
-    interface_wlan = chk_wlan_interface()
-    Lte = chk_ttyLTE()
-    Ard = chk_ttyARD()
     temperature= temp_system()
     macmac=get_mac()
     network_usage = get_network_usage()
     voltage = check_voltage()
     disk_io = get_disk_io()
+    #clear_log_file(log_file_path)  # Apaga o conteúdo do arquivo de log ao iniciar
+    # current_time = time.strftime('%Y-%m-%d %H:%M:%S')
     
     data = [
-        ["counter", counter_ind],
+        ["counter", counter_id],
         ["Data", current_time2.strip('\n')],
         ["ignition", ig],
-        # ["mode_aways_on", modee],
+        ["mode_aways_on", modee],
         ["connection_internet", conncetion_chk],
         ["Modem_IP", Process_modem], 
         ["Signal_modem", signal],
         ["Status_modem", status],
-        # ["connection_extra", connect_ip],
-        ["connection_int", connect_int ],
+        ["connection_extra", connect_extra],
+        ["connection_int_ext", connect_int_ext],
         ["Expanded", total_size],
         ["Free_disk", free_size],
         ["Size_disk", size],
