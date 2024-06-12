@@ -101,7 +101,18 @@ def get_network_usage():
 
 def get_system_uptime():
     uptime_seconds = os.popen('awk \'{print $1}\' /proc/uptime').read().strip()
-    return float(uptime_seconds) / 3600  # Convert to hours
+    uptime_milliseconds = int(float(uptime_seconds) * 1000)
+    return uptime_milliseconds 
+
+def get_uptime_ms():
+    try:
+        with open('/proc/uptime', 'r') as f:
+            uptime_seconds = float(f.readline().split()[0])
+            uptime_milliseconds = int(uptime_seconds * 1000)
+            return uptime_milliseconds
+    except Exception as e:
+        print(f"Error reading uptime: {e}")
+        return None
 
 def check_voltage():
     try:
@@ -112,7 +123,7 @@ def check_voltage():
         return None
 
 def get_disk_io():
-    disk_io = psutil.disk_io_counters()
+    disk_io = psutil.disk_io_counters(nowrap=True)
     return {
         'read_count': disk_io.read_count,
         'write_count': disk_io.write_count,
@@ -390,7 +401,6 @@ def get_ccid():
         return ' Sim not inserted'
 
 def check_camera_status():
-    log("teste camera")
     command_frame="tail -n10 /home/pi/.driver_analytics/logs/current/camera.log"
     result, error=run_bash_command(command_frame)
     available= " 1 "
@@ -404,7 +414,6 @@ def check_camera_status():
         diferenca_tempo = time.time() - timestamp_ultima_msg
         if(diferenca_tempo>60):
             available=" 0 "
-        #print("Diferença de tempo:", round(diferenca_tempo), "segundos")
 
     command = "vcgencmd get_camera"
     output, error = run_bash_command(command)
@@ -606,20 +615,20 @@ def check_error_dmesg():
     if output != "":
         return 1
     elif output2 != "":
-        return 2
+        return 1
     elif output3 != "":
-        return 3
+        return 1
     elif output4 != "":
-        return 4
+        return 1
     else:
         return 0
     
-def send_csv_to_api(file_path, url,message):
-    with open(file_path, 'rb') as file:
-        files = {'file': file}
-        data = {'message': message}
-        response = requests.post(url, files=files, data=data)
-        return response
+# def send_csv_to_api(file_path, url,message):
+#     with open(file_path, 'rb') as file:
+#         files = {'file': file}
+#         data = {'message': message}
+#         response = requests.post(url, files=files, data=data)
+#         return response
 
 # function to create a connection with database
 def create_connection(db_file):
@@ -670,16 +679,16 @@ def load_config(filename):
             config[key] = value
     return config
         
-def send_email_message(placa, mode="cdl", csv_file_path=None, error_message=None):
+def send_email_message(placa,problema, mode="cdl", csv_file_path=None, error_message=None):
 
     text_type = 'plain'
     text = "[PKG] O veículo de placa " + placa + " está online!"
     if mode == "api":
-        text = "[API] O veículo de placa " + placa + " está online!"
+        text = "[API] O veículo de placa " + placa + " está online!" 
     if mode == "cdl":
-        text = "[CDL] O veículo de placa " + placa + " está online!"
+        text = "[CDL] O veículo de placa " + placa + " está online!" 
     if mode == "calib":
-        text = "[CALIB] O veículo de placa " + placa + " está online!"
+        text = "[CALIB] O veículo de placa " + placa + " está online!" 
 
     if error_message:
         text += f"\n\nErro detectado: {error_message}"
@@ -810,6 +819,7 @@ def main():
     network_usage = get_network_usage()
     voltage = check_voltage()
     disk_io = get_disk_io()
+    uptime = get_system_uptime()
     #clear_log_file(log_file_path)  # Apaga o conteúdo do arquivo de log ao iniciar
     # current_time = time.strftime('%Y-%m-%d %H:%M:%S')
     
@@ -848,8 +858,9 @@ def main():
         ["Disk_Write_Count", disk_io['write_count']],
         ["Disk_Read_Bytes", disk_io['read_bytes']],
         ["Disk_Write_Bytes", disk_io['write_bytes']],
-        ["Disk_Read_Time", disk_io['read_time']],
-        ["Disk_Write_Time", disk_io['write_time']]
+        ["Disk_Read_Time (ms)", disk_io['read_time']],
+        ["Disk_Write_Time (ms)", disk_io['write_time']],
+        ["Uptime (ms)", uptime]
     ]
     with open(filename, mode='a', newline='') as file:
    
