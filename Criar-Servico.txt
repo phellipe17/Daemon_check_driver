@@ -42,3 +42,15 @@ sudo service checking_health start
 sudo service checking_health stop
 
 sudo service checking_health restart
+
+----------------------------------------------------------------------------------------------------------------------
+
+Run python script who create a csv file:
+
+sudo apt install python3-pip
+
+pip3 install psutil
+
+sudo pip3 install --upgrade
+
+----------------------------------------------------------------------------------------------------------------------

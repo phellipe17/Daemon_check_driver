@@ -722,32 +722,39 @@ def main():
     # log_file_path = '/var/log/checking_health.log'
     conn = create_connection(pathdriver)
     filename2="/home/pi/.driver_analytics/mode"
-    filename = "/home/pi/.driver_analytics/logs/driver_analytics_health.csv"
+    # filename = "/home/pi/.driver_analytics/logs/driver_analytics_health.csv"
     config=load_config(filename2) 
     counter_id=inicializar_contador()
     ip_extra="10.0.89.11"
     ip_interna="10.0.90.196"
     ip_externa="10.0.90.195"
     
-    # Guardando os valores das variavel mode em config
+    # Saving the configuration parameters
     AS1_BRIDGE_MODE = int(config.get("BRIDGE_MODE", ""))
     AS1_CAMERA_TYPE = int(config.get("CAMERA_TYPE", ""))
     # AS1_NUMBER_OF_SLAVE_DEVICES = int(config.get("NUMBER_OF_SLAVE_DEVICES", ""))
     AS1_ALWAYS_ON_MODE = config.get("ALWAYS_ON_MODE", "") if config.get("ALWAYS_ON_MODE", "") != "" else 0
     AS1_NUMBER_OF_EXTRA_CAMERAS = int(config.get("NUMBER_OF_EXTRA_CAMERAS", "")) if config.get("NUMBER_OF_EXTRA_CAMERAS", "") != "" else 0
     
-    #conecta ao banco e pega placa do veículo
+    #Create table csv identifing extern and intern cameras
+    
+    if AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE == 1:
+        filename = "/home/pi/.driver_analytics/logs/driver_analytics_health_e.csv"
+    elif AS1_BRIDGE_MODE == 2:
+        filename = "/home/pi/.driver_analytics/logs/driver_analytics_health_i.csv"
+    
+    #Connect to database and get the vehicle plate
     with conn:
          vehicle_plate = select_field_from_table(conn, "placa", "vehicle_config")
     
     
-    # Verifica GPS
+    # Verify GPS
     if(AS1_CAMERA_TYPE==0):
         fix, sig_str, sat_num = chk_gps3() # modificado para teste
     else:
         fix, sig_str, sat_num = None,None,None
     
-    # Verifica conexão com interna ou externa
+    # Verify connection between internal and external cameras
     if AS1_CAMERA_TYPE == 0:
         connect_int_ext = check_ip_connectivity(ip_interna)
     elif AS1_CAMERA_TYPE ==1:
@@ -755,17 +762,17 @@ def main():
     else:
         connect_int_ext=None
         
-    # Verifica modo ALWAYS ON
+    # Verify always on mode
     modee=AS1_ALWAYS_ON_MODE if AS1_ALWAYS_ON_MODE != '' else 0
     
-    # Verifica Camera extra
+    # Verify connection between extra cameras
     if AS1_NUMBER_OF_EXTRA_CAMERAS >0:
         connect_extra= check_ip_connectivity(ip_extra)
     else:
         connect_extra= '0'
     
     
-    #Verifica processos do modem
+    #Verify modem and signal
     if AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE ==1: # 0 master sem slave / 1 master com slave / 2 e slave
         Process_modem = chk_dial_modem()
         imu = imu_check()
@@ -779,13 +786,13 @@ def main():
        status = None
        Lte = None
     
-    # Verifica Display
+    # Verify ARD
     if AS1_CAMERA_TYPE == 0:
         Ard = chk_ttyARD()
     else:
         Ard = None
     
-    # Verificação geral raspberry
+    # Verify general health
     current_time2=current_time_pi()#Pega a hora atual
     ig = checking_ignition()#Verifica se a ignição esta ligada
     modee=checking_mode()#Identifica o modo de operação
