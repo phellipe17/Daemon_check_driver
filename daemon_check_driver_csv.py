@@ -679,16 +679,16 @@ def load_config(filename):
             config[key] = value
     return config
         
-def send_email_message(placa,problema, mode="cdl", csv_file_path=None, error_message=None):
+def send_email_message(placa, problema, csv_file_path, mode="cdl", error_message=None):
 
     text_type = 'plain'
-    text = "[PKG] O veículo de placa " + placa + " está online!"
+    text = "[PKG] O veículo de placa " + placa + " está online! O problema é: " + problema
     if mode == "api":
-        text = "[API] O veículo de placa " + placa + " está online!" 
+        text = "[API] O veículo de placa " + placa + " está online! O problema é: " + problema 
     if mode == "cdl":
-        text = "[CDL] O veículo de placa " + placa + " está online!" 
+        text = "[CDL] O veículo de placa " + placa + " está online! O problema é: " + problema 
     if mode == "calib":
-        text = "[CALIB] O veículo de placa " + placa + " está online!" 
+        text = "[CALIB] O veículo de placa " + placa + " está online! O problema é: " + problema 
 
     if error_message:
         text += f"\n\nErro detectado: {error_message}"
@@ -706,7 +706,7 @@ def send_email_message(placa,problema, mode="cdl", csv_file_path=None, error_mes
 
     msg['Subject'] = subject
     msg['From'] = "cco@motora.ai"
-    msg['To'] = "luiz@motora.ai, lauro@motora.ai, phellipe.santos@motora.ai, gian.luca@motora.ai"
+    msg['To'] = "joao.guimaraes@motora.ai, phellipe.santos@motora.ai"
 
     if csv_file_path:
         part = MIMEBase('application', 'octet-stream')
@@ -903,6 +903,7 @@ def main():
         # response = send_csv_to_api(filename, url, answer)
         # print(response)
         #----------------------------------------------------
+    send_email_message("dev0666",answer, filename, error_message=None)
                
 
 
