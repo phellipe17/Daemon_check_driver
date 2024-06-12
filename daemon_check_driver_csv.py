@@ -721,9 +721,9 @@ def main():
     #log_file_path = f'/home/pi/.monitor/logs/current/{daemon_name}.log'
     # log_file_path = '/var/log/checking_health.log'
     conn = create_connection(pathdriver)
-    filename="/home/pi/.driver_analytics/mode"
+    filename2="/home/pi/.driver_analytics/mode"
     filename = "/home/pi/.driver_analytics/logs/driver_analytics_health.csv"
-    config=load_config(filename) 
+    config=load_config(filename2) 
     counter_id=inicializar_contador()
     ip_extra="10.0.89.11"
     ip_interna="10.0.90.196"
@@ -762,16 +762,8 @@ def main():
     if AS1_NUMBER_OF_EXTRA_CAMERAS >0:
         connect_extra= check_ip_connectivity(ip_extra)
     else:
-        connect_extra= None
+        connect_extra= '0'
     
-    # Verifica modo ALWAYS ON
-    modee=AS1_ALWAYS_ON_MODE if AS1_ALWAYS_ON_MODE != '' else 0
-    
-    # Verifica Camera extra
-    if AS1_NUMBER_OF_EXTRA_CAMERAS >0:
-        connect_extra= check_ip_connectivity(ip_extra)
-    else:
-        connect_extra= None
     
     #Verifica processos do modem
     if AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE ==1: # 0 master sem slave / 1 master com slave / 2 e slave
@@ -889,9 +881,9 @@ def main():
         elif(var == 4):
             answer=" Bad cable in dmesg"
         #sending csv----------------------------------------
-        url="https://e50e-131-255-23-67.ngrok-free.app/heartbeat"
-        response = send_csv_to_api(filename, url, answer)
-        print(response)
+        # url="https://e50e-131-255-23-67.ngrok-free.app/heartbeat"
+        # response = send_csv_to_api(filename, url, answer)
+        # print(response)
         #----------------------------------------------------
                
 
