@@ -606,7 +606,7 @@ def check_error_dmesg():
     command="dmesg | grep -ia error"
     command2="dmesg | grep -ia over-current"
     command3="dmesg | grep -ia Under-voltage"
-    command4="dmesg | grep -ia usb-bad cable"
+    command4="dmesg | grep -ia 'usb-bad cable'"
     output, error = run_bash_command(command)
     output2, error2 = run_bash_command(command2)
     output3, error3 = run_bash_command(command3)
@@ -682,13 +682,13 @@ def load_config(filename):
 def send_email_message(placa, problema, csv_file_path, mode="cdl", error_message=None):
 
     text_type = 'plain'
-    text = "[PKG] O veículo de placa " + placa + " está online! O problema é: " + problema
+    text = "[PKG] O veículo de placa " + placa + " apresentou o problema : " + problema
     if mode == "api":
-        text = "[API] O veículo de placa " + placa + " está online! O problema é: " + problema 
+        text = "[API] O veículo de placa " + placa + " apresentou o problema : " + problema 
     if mode == "cdl":
-        text = "[CDL] O veículo de placa " + placa + " está online! O problema é: " + problema 
+        text = "[CDL] O veículo de placa " + placa + " apresentou o problema : " + problema 
     if mode == "calib":
-        text = "[CALIB] O veículo de placa " + placa + " está online! O problema é: " + problema 
+        text = "[CALIB] O veículo de placa " + placa + " apresentou o problema : " + problema 
 
     if error_message:
         text += f"\n\nErro detectado: {error_message}"
@@ -700,7 +700,7 @@ def send_email_message(placa, problema, csv_file_path, mode="cdl", error_message
     if mode == "api":
         subject = "[API] Veículo " + placa + " Trocar acesso da empresa!"
     if mode == "cdl":
-        subject = "[CDL] Veículo com placa " + placa + " está online!"
+        subject = "[CDL] Veículo com placa " + placa 
     if mode == "calib":
         subject = "[CALIB] Veículo com placa " + placa + " está online! Checar calibração!"
 
@@ -727,10 +727,13 @@ def send_email_message(placa, problema, csv_file_path, mode="cdl", error_message
         
 
 def main():
+    problema=0
     #log_file_path = f'/home/pi/.monitor/logs/current/{daemon_name}.log'
     # log_file_path = '/var/log/checking_health.log'
+    answer=""
     conn = create_connection(pathdriver)
     filename2="/home/pi/.driver_analytics/mode"
+    vehicle_plate = ""
     # filename = "/home/pi/.driver_analytics/logs/driver_analytics_health.csv"
     config=load_config(filename2) 
     counter_id=inicializar_contador()
@@ -758,8 +761,10 @@ def main():
     
     
     # Verify GPS
-    if(AS1_CAMERA_TYPE==0):
-        fix, sig_str, sat_num = chk_gps3() # modificado para teste
+    if(AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE ==1):
+        fix, sig_str, sat_num = chk_gps3()
+        if fix == None or sig_str == None or sat_num == None:
+            problema=1
     else:
         fix, sig_str, sat_num = None,None,None
     
@@ -798,6 +803,9 @@ def main():
     # Verify ARD
     if AS1_CAMERA_TYPE == 0:
         Ard = chk_ttyARD()
+        if int(Ard) == 0:
+            problema=1
+            
     else:
         Ard = None
     
@@ -814,6 +822,8 @@ def main():
     temperature= temp_system() # Verifica temperatura do sistema
     macmac=get_mac() # Verifica o mac adress
     detected,available = check_camera_status()
+    if int(available) == 0:
+        problema=1
     temperature= temp_system()
     macmac=get_mac()
     network_usage = get_network_usage()
@@ -879,9 +889,9 @@ def main():
         
         writer.writerow(stats)
     incrementar_contador_e_usar()
-    answer=""
+    
     var = check_error_dmesg()
-    if(var >= 0 ):
+    if(var >= 0 or problema == 1):
         #sending Json--------------------------------------    
         # json_data= json.dumps(data_jotason)
         # print(json_data)
@@ -898,12 +908,12 @@ def main():
             answer=" Under-voltage in dmesg"
         elif(var == 4):
             answer=" Bad cable in dmesg"
+        send_email_message(vehicle_plate,answer, filename, error_message=None)
         #sending csv----------------------------------------
         # url="https://e50e-131-255-23-67.ngrok-free.app/heartbeat"
         # response = send_csv_to_api(filename, url, answer)
         # print(response)
         #----------------------------------------------------
-    send_email_message("dev0666",answer, filename, error_message=None)
                
 
 
