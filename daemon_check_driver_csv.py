@@ -6,6 +6,12 @@ import subprocess
 import serial
 import json, requests
 import csv
+import smtplib
+
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.base import MIMEBase
+from email import encoders
 
 # Caminho do diretório
 directory_path = '/home/pi/.driver_analytics/logs/current/'
@@ -627,6 +633,50 @@ def send_csv_to_api(file_path, url,message):
         response = requests.post(url, files=files, data=data)
         return response
         
+def send_email_message(placa, mode="cdl", csv_file_path=None, error_message=None):
+
+    text_type = 'plain'
+    text = "[PKG] O veículo de placa " + placa + " está online!"
+    if mode == "api":
+        text = "[API] O veículo de placa " + placa + " está online!"
+    if mode == "cdl":
+        text = "[CDL] O veículo de placa " + placa + " está online!"
+    if mode == "calib":
+        text = "[CALIB] O veículo de placa " + placa + " está online!"
+
+    if error_message:
+        text += f"\n\nErro detectado: {error_message}"
+
+    msg = MIMEMultipart()
+    msg.attach(MIMEText(text, text_type, 'utf-8'))
+
+    subject = "[PKG] Veículo com placa " + placa + " está online!"
+    if mode == "api":
+        subject = "[API] Veículo " + placa + " Trocar acesso da empresa!"
+    if mode == "cdl":
+        subject = "[CDL] Veículo com placa " + placa + " está online!"
+    if mode == "calib":
+        subject = "[CALIB] Veículo com placa " + placa + " está online! Checar calibração!"
+
+    msg['Subject'] = subject
+    msg['From'] = "cco@motora.ai"
+    msg['To'] = "luiz@motora.ai, lauro@motora.ai, phellipe.santos@motora.ai, gian.luca@motora.ai"
+
+    if csv_file_path:
+        part = MIMEBase('application', 'octet-stream')
+        with open(csv_file_path, 'rb') as file:
+            part.set_payload(file.read())
+        encoders.encode_base64(part)
+        part.add_header('Content-Disposition', f'attachment; filename={os.path.basename(csv_file_path)}')
+        msg.attach(part)
+
+    mailserver = smtplib.SMTP('smtp.office365.com', 587)
+    mailserver.ehlo()
+    mailserver.starttls()
+    password = "1Q@w3e4r"
+    mailserver.login("cco@motora.ai", password)
+    mailserver.send_message(msg)
+    mailserver.quit()
     
         
 
@@ -672,12 +722,12 @@ def main():
         ["counter", counter_ind],
         ["Data", current_time2.strip('\n')],
         ["ignition", ig],
-        ["mode_aways_on", modee],
+        # ["mode_aways_on", modee],
         ["connection_internet", conncetion_chk],
         ["Modem_IP", Process_modem], 
         ["Signal_modem", signal],
         ["Status_modem", status],
-        ["connection_extra", connect_ip],
+        # ["connection_extra", connect_ip],
         ["connection_int", connect_int ],
         ["Expanded", total_size],
         ["Free_disk", free_size],
