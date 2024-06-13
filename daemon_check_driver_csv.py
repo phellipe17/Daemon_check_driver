@@ -600,12 +600,20 @@ def current_time_pi():
 
 def check_dmesg_for_errors():
     # Execute the dmesg command to get the kernel log
+    vet2=[]
+    
+    command = "dmesg | grep -ia 'usb cable is bad'"
+    output,error = run_bash_command(command)
+    if output != "":
+        vet2.append("Maybe USB cable is bad")
+    
     try:
         result = subprocess.run(['dmesg'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         dmesg_output = result.stdout
     except subprocess.CalledProcessError as e:
         print(f"Erro ao executar dmesg: {e}")
         return
+    
     
     # Verify if the output contains any of the following error messages
     errors = {
@@ -622,7 +630,7 @@ def check_dmesg_for_errors():
     }
 
     detected_errors = {}
-    vet2=[]
+    
     for line in dmesg_output.split('\n'):
         for error_msg, error_desc in errors.items():
             if error_msg in line:
@@ -725,7 +733,7 @@ def send_email_message(placa, problema, csv_file_path, mode="cdl", error_message
     if mode == "api":
         text = "[API] O veículo de placa " + placa + " apresentou o problema "  
     if mode == "cdl":
-        text = "[CDL] O veículo de placa " + placa + " "+ problema 
+        text = "[CDL] O veículo de placa " + placa + ": "+ problema 
     if mode == "calib":
         text = "[CALIB] O veículo de placa " + placa + " apresentou o problema " 
 
