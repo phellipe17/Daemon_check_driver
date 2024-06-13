@@ -268,7 +268,7 @@ def chk_gps3():
         fix= "2D"
     else:
         fix = "No Fix"
-        # problems_list.append("GPS: Sem fix")
+        problems_list.append("GPS: Sem fix")
         
 
     if snr_values:
@@ -278,7 +278,7 @@ def chk_gps3():
             sig_str = f"{avg_snr:.2f}"
         else:
             sig_str = f"{avg_snr:.2f}"
-            # problems_list.append("GPS: Sinal de GPS fraco")
+            problems_list.append("GPS: Sinal de GPS fraco")
 
     if num_satellites is not None:
         if avg_num_satellites >= 8:
@@ -287,7 +287,7 @@ def chk_gps3():
             sat_num =f"{avg_num_satellites:.0f}"
         else:
             sat_num = f"{avg_num_satellites:.0f}"
-            # problems_list.append("GPS: Poucos satélites disponíveis")
+            problems_list.append("GPS: Poucos satélites disponíveis")
     
     return fix, sig_str, sat_num
     
