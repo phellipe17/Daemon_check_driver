@@ -622,7 +622,7 @@ def check_dmesg_for_errors():
     }
 
     detected_errors = {}
-
+    vet2=[]
     for line in dmesg_output.split('\n'):
         for error_msg, error_desc in errors.items():
             if error_msg in line:
@@ -636,9 +636,10 @@ def check_dmesg_for_errors():
         for error_desc, messages in detected_errors.items():
             print(f"\n{error_desc}:")
             for message in messages:
+                vet2.append(message)
                 print(f"  {message}")
     
-        return detected_errors
+        return vet2
     else:
         print("Nenhum erro detectado no dmesg.")
         
@@ -798,8 +799,9 @@ def main():
     with conn:
          vehicle_plate = select_field_from_table(conn, "placa", "vehicle_config")
     
-    
-    answer=check_rfid_log()
+    if check_rfid_log() != "":
+        problema=1
+        var.append("RFID não detectado\n")
     
     # Verify GPS
     if(AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE ==1):
@@ -846,7 +848,7 @@ def main():
         Ard = chk_ttyARD()
         if int(Ard) == 0:
             problema=1
-            answer += "Arduino não detectado\n"
+            var.append("Arduino não detectado\n")
             
     else:
         Ard = None
@@ -933,8 +935,8 @@ def main():
     incrementar_contador_e_usar()
     
     if check_dmesg_for_errors() != None:
-        var.append(check_dmesg_for_errors())
-    print("tamanho do vetor var: "+ len(var))
+        var.extend(check_dmesg_for_errors())
+    print(f"tamanho do vetor var:  {len(var)}")
     if(len(var) > 0 or problema == 1):
         #sending Json--------------------------------------    
         # json_data= json.dumps(data_jotason)
@@ -945,8 +947,8 @@ def main():
         # print(response)
         #----------------------------------------------------
         if len(var) > 0:
-            for key, value in var.items():
-                answer += f"{key}\n"
+            for item in var:
+                answer += f"{item}\n"
         send_email_message(vehicle_plate,answer, filename, error_message=None)
         #sending csv----------------------------------------
         # url="https://e50e-131-255-23-67.ngrok-free.app/heartbeat"
