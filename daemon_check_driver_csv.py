@@ -24,6 +24,8 @@ pathdriver="/home/pi/.driver_analytics/database/driveranalytics.db"
 #from daemonize import Daemonize
 daemon_name = 'chk_status'
 
+problems_list = []
+
 def color(msg, collor):
     
     coloring=False #False para não imprimir com cor, True para sair com cor
@@ -47,6 +49,7 @@ def run_bash_command(command):
     return output.decode().strip(), error.decode().strip()
 
 
+
 def imu_check():
     log("Testando imu")
     command2 = 'i2cdetect -y 1 | grep -ia 68'
@@ -54,6 +57,7 @@ def imu_check():
     if (result != ''):
         return ' 1 '
     else:
+        problems_list.append("Problema na IMU")
         return '0'
         
 
@@ -175,9 +179,11 @@ def get_machine_storage():
         total_size_status =' 1 '
     else:
         total_size_status = ' 0 '
+        problems_list.append("Armazenamento total inferior a 10")
 
     if (free_size < 0.05 * total_size):
         free_size_status = ' 0 '
+        problems_list.append("Pouco espaço disponível em disco")
     else:
         free_size_status = ' 1 '
     return total_size_status, free_size_status,total_size
@@ -262,6 +268,7 @@ def chk_gps3():
         fix= "2D"
     else:
         fix = "No Fix"
+        # problems_list.append("GPS: Sem fix")
         
 
     if snr_values:
@@ -271,6 +278,7 @@ def chk_gps3():
             sig_str = f"{avg_snr:.2f}"
         else:
             sig_str = f"{avg_snr:.2f}"
+            # problems_list.append("GPS: Sinal de GPS fraco")
 
     if num_satellites is not None:
         if avg_num_satellites >= 8:
@@ -279,6 +287,7 @@ def chk_gps3():
             sat_num =f"{avg_num_satellites:.0f}"
         else:
             sat_num = f"{avg_num_satellites:.0f}"
+            # problems_list.append("GPS: Poucos satélites disponíveis")
     
     return fix, sig_str, sat_num
     
@@ -289,6 +298,7 @@ def chk_dial_modem():
     if(result != ''):
         return ' 1 '
     else:
+        problems_list.append(f"Erro no modem: {error}")
         return ' 0 '
 
 def chk_wlan_interface():
@@ -298,6 +308,7 @@ def chk_wlan_interface():
     if 'UP' in result:
         return ' 1 '
     else:
+        problems_list.append(f"Erro no wlan: {error}")
         return ' 0 '
 
 def chk_ethernet_interface():
@@ -307,6 +318,7 @@ def chk_ethernet_interface():
     if 'UP' in result:
         return ' 1 '
     else:
+        problems_list.append(f"Erro no ethernet: {error}")
         return ' 0 '
 
 def chk_ttyLTE():
@@ -316,6 +328,7 @@ def chk_ttyLTE():
     if 'ttyLTE' in result:
         return '1'
     else:
+        problems_list.append(f"Erro de conexão modem: {error}")
         return '0'
 
 def chk_ttyARD():
@@ -325,6 +338,7 @@ def chk_ttyARD():
     if 'ttyARD' in result:
         return '1'
     else:
+        problems_list.append(f"Erro no display: {error}")
         return '0'
 
 
@@ -386,8 +400,10 @@ def modem_status():
     if "ok" in result2.lower():
         return ' 1 '
     elif "error" in result2.lower():
+        problems_list.append(f"Erro no modem: {result2}")
         return ' 0 '
     else:
+        problems_list.append("Status modem indefinido")
         return "Undefined"
     
 def get_ccid():
@@ -398,6 +414,7 @@ def get_ccid():
     if 'OK' in result and ccid:
         return f' Sim inserted - CCID: {ccid}'
     else:
+        problems_list.append("Cartão sim não inserido")
         return ' Sim not inserted'
 
 def check_camera_status():
@@ -406,6 +423,7 @@ def check_camera_status():
     available= " 1 "
     if "Error opening the camera" in result:
         available = " 0 "
+        problems_list.append("Erro ao abrir a camera")
     else:
         last_log_line=run_bash_command('tail -n2 /home/pi/.driver_analytics/logs/current/camera.log')
         data_hora_ultima_msg_str = str(last_log_line).split(']')[0].strip('[')[-19:]
@@ -414,6 +432,7 @@ def check_camera_status():
         diferenca_tempo = time.time() - timestamp_ultima_msg
         if(diferenca_tempo>60):
             available=" 0 "
+            problems_list.append("Camera não detectada")
 
     command = "vcgencmd get_camera"
     output, error = run_bash_command(command)
@@ -442,6 +461,7 @@ def swap_memory():
     output, error = run_bash_command(command)
     
     if error:
+        problems_list.append(f"Erro no swap de memória: {error}")
         return f" Error: {error} "
     else:
         return f"{output}%"
@@ -452,6 +472,8 @@ def usage_cpu():
     output, error = run_bash_command(command)
     idle_time = float(output.strip().replace(',', '.'))
     usage = 100 - idle_time
+    if error:
+        problems_list.append(f"Erro ao obter uso da CPU: {error}")
     
     return f" {usage:.2f}% " if not error else f"Error: {error}"
         
@@ -460,6 +482,7 @@ def temp_system():
     output, error = run_bash_command(command)
     tempe=round(int(output)/1000)
     if error:
+        problems_list.append(f"Erro ao obter temperatura: {error}")
         return f" Error: {error} "
     else:
         if tempe >= 80:
@@ -472,6 +495,8 @@ def temp_system():
 def get_mac():
     command = "ifconfig eth0 | grep -oE '([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}'"
     output,error= run_bash_command(command)
+    if error:
+        problems_list.append(f"Erro ao obter endereço mac: {error}")
     return output
 
 def log(s, value=None):
@@ -580,6 +605,8 @@ def inicializar_contador():
 def checking_ignition():
     command="cat /dev/shm/IGNITION_IS_ON"
     output, error = run_bash_command(command)
+    if error:
+        problems_list.append(f"Erro ao verificar ignição: {error}")
     out=int(output)
     return out
 
@@ -613,12 +640,16 @@ def check_error_dmesg():
     output4, error4 = run_bash_command(command4)
     
     if output != "":
+        problems_list.append(f"Erro dmesg: {error}")
         return 1
     elif output2 != "":
+        problems_list.append(f"Erro dmesg: {error2}")
         return 1
     elif output3 != "":
+        problems_list.append(f"Erro dmesg: {error3}")
         return 1
     elif output4 != "":
+        problems_list.append(f"Erro dmesg: {error4}")
         return 1
     else:
         return 0
@@ -679,16 +710,19 @@ def load_config(filename):
             config[key] = value
     return config
         
-def send_email_message(placa, problema, csv_file_path, mode="cdl", error_message=None):
+def send_email_message(placa, problems_list, csv_file_path, data_str, error_message=None):
 
     text_type = 'plain'
-    text = "[PKG] O veículo de placa " + placa + " apresentou o problema : " + problema
-    if mode == "api":
-        text = "[API] O veículo de placa " + placa + " apresentou o problema : " + problema 
-    if mode == "cdl":
-        text = "[CDL] O veículo de placa " + placa + " apresentou o problema : " + problema 
-    if mode == "calib":
-        text = "[CALIB] O veículo de placa " + placa + " apresentou o problema : " + problema 
+
+    text = f"""Foram encontrados os seguintes problemas no dispositivo {placa}:
+
+        {problems_list}
+
+Os últimos dados coletados foram:
+
+        {data_str}
+
+"""
 
     if error_message:
         text += f"\n\nErro detectado: {error_message}"
@@ -696,17 +730,12 @@ def send_email_message(placa, problema, csv_file_path, mode="cdl", error_message
     msg = MIMEMultipart()
     msg.attach(MIMEText(text, text_type, 'utf-8'))
 
-    subject = "[PKG] Veículo com placa " + placa + " está online!"
-    if mode == "api":
-        subject = "[API] Veículo " + placa + " Trocar acesso da empresa!"
-    if mode == "cdl":
-        subject = "[CDL] Veículo com placa " + placa 
-    if mode == "calib":
-        subject = "[CALIB] Veículo com placa " + placa + " está online! Checar calibração!"
+    subject = "Problema(s) no Veículo com placa " + placa + "!"
 
     msg['Subject'] = subject
     msg['From'] = "cco@motora.ai"
     msg['To'] = "joao.guimaraes@motora.ai, phellipe.santos@motora.ai"
+    # msg['To'] = "joao.guimaraes@motora.ai"
 
     if csv_file_path:
         part = MIMEBase('application', 'octet-stream')
@@ -907,8 +936,13 @@ def main():
         elif(var == 3):
             answer=" Under-voltage in dmesg"
         elif(var == 4):
-            answer=" Bad cable in dmesg"
-        send_email_message(vehicle_plate,answer, filename, error_message=None)
+            answer=" Bad cable in dmesg" # Cannot enable. Maybe the USB cable is bad?
+            
+        if problems_list:
+            tretas = "\n\t".join(problems_list)
+            data_str = "\n\t".join([f"{item[0]}: {item[1]}" for item in data])
+            send_email_message(vehicle_plate, tretas, filename, data_str, error_message=None)
+
         #sending csv----------------------------------------
         # url="https://e50e-131-255-23-67.ngrok-free.app/heartbeat"
         # response = send_csv_to_api(filename, url, answer)
