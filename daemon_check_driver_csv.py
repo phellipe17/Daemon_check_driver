@@ -24,6 +24,7 @@ pathdriver="/home/pi/.driver_analytics/database/driveranalytics.db"
 #from daemonize import Daemonize
 daemon_name = 'chk_status'
 
+
 def color(msg, collor):
     
     coloring=False #False para não imprimir com cor, True para sair com cor
@@ -586,13 +587,10 @@ def checking_ignition():
 def checking_mode():
     command="cat /home/pi/.driver_analytics/mode | grep -ia always | tail -c 2"
     output, error = run_bash_command(command)
-    # print(output)
-    # print(error)
     if output == "":
         out=0
     else:
         out=int(output)
-    # print(out)
     return out
 
 def current_time_pi():
@@ -600,28 +598,68 @@ def current_time_pi():
     output,error = run_bash_command(command)
     return output
 
-def check_error_dmesg():
+def check_dmesg_for_errors():
+    # Execute the dmesg command to get the kernel log
+    try:
+        result = subprocess.run(['dmesg'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        dmesg_output = result.stdout
+    except subprocess.CalledProcessError as e:
+        print(f"Erro ao executar dmesg: {e}")
+        return
     
-    # command = "dmesg | grep -ia "+comandodo
-    command="dmesg | grep -ia error"
-    command2="dmesg | grep -ia over-current"
-    command3="dmesg | grep -ia Under-voltage"
-    command4="dmesg | grep -ia 'usb-bad cable'"
-    output, error = run_bash_command(command)
-    output2, error2 = run_bash_command(command2)
-    output3, error3 = run_bash_command(command3)
-    output4, error4 = run_bash_command(command4)
+    # Verify if the output contains any of the following error messages
+    errors = {
+        "Under-voltage detected!": "Under-voltage",
+        "Over-current detected!": "Over-current",
+        "I/O error": "I/O Error",
+        "device descriptor read/64, error": "USB Device Error",
+        "Out of memory:": "Out of Memory",
+        # "link down": "Network Link Down",
+        # "link up": "Network Link Up",
+        "EXT4-fs error": "Filesystem Corruption",
+        "Failed to start": "Service Start Failure",
+        "Kernel panic": "Kernel Panic"
+    }
+
+    detected_errors = {}
+
+    for line in dmesg_output.split('\n'):
+        for error_msg, error_desc in errors.items():
+            if error_msg in line:
+                if error_desc not in detected_errors:
+                    detected_errors[error_desc] = []
+                detected_errors[error_desc].append(line)
+
+    # Exibir os erros detectados
+    if detected_errors:
+        print("Erros detectados no dmesg:")
+        for error_desc, messages in detected_errors.items():
+            print(f"\n{error_desc}:")
+            for message in messages:
+                print(f"  {message}")
     
-    if output != "":
-        return 1
-    elif output2 != "":
-        return 1
-    elif output3 != "":
-        return 1
-    elif output4 != "":
-        return 1
+        return detected_errors
     else:
-        return 0
+        print("Nenhum erro detectado no dmesg.")
+        
+def check_rfid_log():
+    # Command to verify if the RFID log contains the string 'no rfid found'
+    command = "cat /home/pi/.driver_analytics/logs/current/rfid.log | grep -ia 'no rfid found'"
+    
+    try:
+        # Execute the command and capture the output
+        result,error = run_bash_command(command)
+        
+        # Verify if the output contains the string 'no rfid found'
+        if result != "":
+            print("RFID log contains 'no rfid found'")
+            return "No Rfid Found\n"
+        else:
+            print("RFID log does not contain 'no rfid found'")
+            return ""
+    except subprocess.CalledProcessError as e:
+        print(f"Error executing command: {e}")
+        return ""
     
 # def send_csv_to_api(file_path, url,message):
 #     with open(file_path, 'rb') as file:
@@ -682,13 +720,13 @@ def load_config(filename):
 def send_email_message(placa, problema, csv_file_path, mode="cdl", error_message=None):
 
     text_type = 'plain'
-    text = "[PKG] O veículo de placa " + placa + " apresentou o problema : " + problema
+    text = "[PKG] O veículo de placa " + placa + " apresentou o problema " 
     if mode == "api":
-        text = "[API] O veículo de placa " + placa + " apresentou o problema : " + problema 
+        text = "[API] O veículo de placa " + placa + " apresentou o problema "  
     if mode == "cdl":
-        text = "[CDL] O veículo de placa " + placa + " apresentou o problema : " + problema 
+        text = "[CDL] O veículo de placa " + placa + " "+ problema 
     if mode == "calib":
-        text = "[CALIB] O veículo de placa " + placa + " apresentou o problema : " + problema 
+        text = "[CALIB] O veículo de placa " + placa + " apresentou o problema " 
 
     if error_message:
         text += f"\n\nErro detectado: {error_message}"
@@ -700,7 +738,7 @@ def send_email_message(placa, problema, csv_file_path, mode="cdl", error_message
     if mode == "api":
         subject = "[API] Veículo " + placa + " Trocar acesso da empresa!"
     if mode == "cdl":
-        subject = "[CDL] Veículo com placa " + placa 
+        subject = "[CDL] Veículo com placa " + placa + " apresentou o problema "
     if mode == "calib":
         subject = "[CALIB] Veículo com placa " + placa + " está online! Checar calibração!"
 
@@ -727,10 +765,11 @@ def send_email_message(placa, problema, csv_file_path, mode="cdl", error_message
         
 
 def main():
+    answer = ""
     problema=0
+    var=[]
     #log_file_path = f'/home/pi/.monitor/logs/current/{daemon_name}.log'
     # log_file_path = '/var/log/checking_health.log'
-    answer=""
     conn = create_connection(pathdriver)
     filename2="/home/pi/.driver_analytics/mode"
     vehicle_plate = ""
@@ -759,6 +798,8 @@ def main():
     with conn:
          vehicle_plate = select_field_from_table(conn, "placa", "vehicle_config")
     
+    
+    answer=check_rfid_log()
     
     # Verify GPS
     if(AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE ==1):
@@ -805,6 +846,7 @@ def main():
         Ard = chk_ttyARD()
         if int(Ard) == 0:
             problema=1
+            answer += "Arduino não detectado\n"
             
     else:
         Ard = None
@@ -890,8 +932,10 @@ def main():
         writer.writerow(stats)
     incrementar_contador_e_usar()
     
-    var = check_error_dmesg()
-    if(var >= 0 or problema == 1):
+    if check_dmesg_for_errors() != None:
+        var.append(check_dmesg_for_errors())
+    print("tamanho do vetor var: "+ len(var))
+    if(len(var) > 0 or problema == 1):
         #sending Json--------------------------------------    
         # json_data= json.dumps(data_jotason)
         # print(json_data)
@@ -900,14 +944,9 @@ def main():
         # response = requests.post(url, data=json_data, headers=headers)
         # print(response)
         #----------------------------------------------------
-        if(var == 1):
-            answer=" General Error in dmesg"
-        elif(var == 2):
-            answer=" Over-current in dmesg"
-        elif(var == 3):
-            answer=" Under-voltage in dmesg"
-        elif(var == 4):
-            answer=" Bad cable in dmesg"
+        if len(var) > 0:
+            for key, value in var.items():
+                answer += f"{key}\n"
         send_email_message(vehicle_plate,answer, filename, error_message=None)
         #sending csv----------------------------------------
         # url="https://e50e-131-255-23-67.ngrok-free.app/heartbeat"
