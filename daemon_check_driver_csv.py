@@ -464,11 +464,11 @@ def temp_system():
         return f" Error: {error} "
     else:
         if tempe >= 80:
-            return f"{tempe}°"
+            return tempe
         elif tempe >= 60 & tempe <80:
-            return f"{tempe}°"
+            return tempe
         elif tempe<60:
-            return f"{tempe}°"
+            return tempe
 
 def get_mac():
     command = "ifconfig eth0 | grep -oE '([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}'"
@@ -872,11 +872,15 @@ def main():
     interface_e = chk_ethernet_interface() # Verifica se existe porta ethernet
     interface_wlan = chk_wlan_interface() # Verifica se o wifi esta funcional
     temperature= temp_system() # Verifica temperatura do sistema
+    if temperature >= 85:
+        var.append("Temperatura alta\n")
+        print("Temperatura alta")
+    else:
+        print("Temperatura normal")    
     macmac=get_mac() # Verifica o mac adress
     detected,available = check_camera_status()
     if int(available) == 0:
         problema=1
-    temperature= temp_system()
     macmac=get_mac()
     network_usage = get_network_usage()
     voltage = check_voltage()
