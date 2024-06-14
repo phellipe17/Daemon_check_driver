@@ -423,19 +423,19 @@ def check_camera_status():
         
     return detected, available
 
-# def check_camera_status2():
-#     try:
-#        subprocess.run(["raspistill", "-o", "/tmp/camera_test.jpg", "-w", "640", "-h", "480"], check=True,stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-#        available = " YES "
-#     except subprocess.CalledProcessError as e:
-#        available = f" NO - error no:({e.returncode})"
+def check_camera_status2():
+    try:
+       subprocess.run(["raspistill", "-o", "/tmp/camera_test.jpg", "-w", "640", "-h", "480"], check=True,stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+       available = " YES "
+    except subprocess.CalledProcessError as e:
+       available = f" NO - error no:({e.returncode})"
     
-#     command = "vcgencmd get_camera"
-#     output, error = run_bash_command(command)
-#     detected = " YES ", "green" if "detected=1" in output else " NO "
-#     connected = " YES " if "supported=1" in output else " NO "
+    command = "vcgencmd get_camera"
+    output, error = run_bash_command(command)
+    detected = " YES ", "green" if "detected=1" in output else " NO "
+    connected = " YES " if "supported=1" in output else " NO "
         
-#     return detected, connected, available  
+    return detected, connected, available  
 
 def swap_memory():
     log("teste swap memoria")
@@ -753,7 +753,7 @@ def send_email_message(placa, problema, csv_file_path, mode="cdl", error_message
 
     msg['Subject'] = subject
     msg['From'] = "cco@motora.ai"
-    msg['To'] = "joao.guimaraes@motora.ai, phellipe.santos@motora.ai"
+    msg['To'] = "joao.guimaraes@motora.ai, phellipe.santos@motora.ai, luiz@motora.ai"
 
     if csv_file_path:
         part = MIMEBase('application', 'octet-stream')
@@ -770,6 +770,125 @@ def send_email_message(placa, problema, csv_file_path, mode="cdl", error_message
     mailserver.login("cco@motora.ai", password)
     mailserver.send_message(msg)
     mailserver.quit()
+
+def check_central():
+    command = "pgrep central"
+    output, error = run_bash_command(command)
+    if output:
+        return ' 1 '
+    else:
+        return ' 0 '
+
+def open_serial_connection(port, baudrate):
+    try:
+        ser = serial.Serial(port, baudrate, timeout=1)
+        print(f"Port {port} opened successfully")
+        return ser
+    except serial.SerialException as e:
+        print(f"Error opening port {port}: {e}")
+        return None
+
+def close_serial_connection(ser):
+    if ser.is_open:
+        ser.close()
+        print(f"Port {ser.port} closed successfully")
+
+def set_gps_baudrate(ser, baudrate=115200):
+    try:
+        ser.write(f"$PMTK251,{baudrate}*1F\r\n".encode())
+        time.sleep(1)  # Aguarde para que o comando seja processado
+        ser.baudrate = baudrate
+        print(f"Set GPS baudrate to: {baudrate} kbps")
+    except serial.SerialException as e:
+        print(f"Error setting GPS baudrate: {e}")
+
+def set_gnss_mode(ser):
+    try:
+        ser.write(b"$PMTK353,1,1,1,1,0*2B\r\n")  # Comando para definir o modo GNSS
+        time.sleep(1)  # Aguarde para que o comando seja processado
+        print("Set GNSS mode")
+    except serial.SerialException as e:
+        print(f"Error setting GNSS mode: {e}")
+
+def read_gps_data(ser, duration=2):
+    start_time = time.time()
+    gps_data = []
+    
+    while (time.time() - start_time) < duration:
+        try:
+            line = ser.readline().decode('utf-8', errors='ignore').strip()
+            if line:
+                print(f"Received line: {line}")
+                gps_data.append(line)
+        except serial.SerialException as e:
+            print(f"Error reading from serial port: {e}")
+            break
+    return gps_data
+
+def parse_gps_data(gps_data):
+    num_satellites = 0
+    signal_quality = 0
+    fix_status = "No Fix"  # Default status
+
+    for line in gps_data:
+        if line.startswith('Received line:'):
+            line = line.split('Received line:')[1].strip()
+
+        if line.startswith('$GPGSV'):
+            parts = line.split(',')
+            try:
+                num_satellites = int(parts[3])
+                for i in range(7, len(parts), 4):
+                    if i < len(parts) and parts[i].isdigit():
+                        signal_quality = max(signal_quality, int(parts[i]))
+            except (ValueError, IndexError):
+                continue
+        elif line.startswith('$GPGGA'):
+            parts = line.split(',')
+            try:
+                num_satellites = int(parts[7])
+            except (ValueError, IndexError):
+                continue
+        elif line.startswith('$GNGSA'):
+            parts = line.split(',')
+            try:
+                # Check fix type
+                if parts[1] == 'A':  # A for Auto
+                    fix_type = parts[2]
+                    if fix_type == '1':
+                        fix_status = "1D"
+                    elif fix_type == '2':
+                        fix_status = "2D"
+                    elif fix_type == '3':
+                        fix_status = "3D"
+            except (ValueError, IndexError):
+                continue
+
+    return num_satellites, signal_quality, fix_status
+
+def initialize_and_read_gps(port, baudrate, final_baudrate):
+    ser = open_serial_connection(port, baudrate)
+    if ser:
+        # Configurar baudrate e GNSS
+        set_gps_baudrate(ser, final_baudrate)
+        set_gnss_mode(ser)
+        
+        # Fechar e reabrir a conexão serial com o baudrate atualizado
+        close_serial_connection(ser)
+        time.sleep(1)  # Aguarde um segundo antes de reabrir
+        ser = open_serial_connection(port, final_baudrate)
+    
+    if ser:
+        gps_data = read_gps_data(ser, duration=3)
+        num_satellites, signal_quality,Fix = parse_gps_data(gps_data)
+        
+        print(f"Number of satellites: {num_satellites}")
+        print(f"Signal quality: {signal_quality}")
+        print(f"GPS Fix: {Fix}")
+        
+        close_serial_connection(ser)
+        
+    return Fix, signal_quality, num_satellites
     
         
 
@@ -777,6 +896,9 @@ def main():
     answer = ""
     problema=0
     var=[]
+    port = '/dev/serial0'
+    baudrate = 9600  # Inicialmente abrir com 9600 para enviar comandos
+    final_baudrate = 115200  # Baudrate desejado
     #log_file_path = f'/home/pi/.monitor/logs/current/{daemon_name}.log'
     # log_file_path = '/var/log/checking_health.log'
     conn = create_connection(pathdriver)
@@ -788,6 +910,7 @@ def main():
     ip_extra="10.0.89.11"
     ip_interna="10.0.90.196"
     ip_externa="10.0.90.195"
+    central=check_central()
     
     # Saving the configuration parameters
     AS1_BRIDGE_MODE = int(config.get("BRIDGE_MODE", ""))
@@ -836,6 +959,25 @@ def main():
     else:
         connect_extra= '0'
     
+
+    if(central == 1):
+        print("central esta rodando...") 
+        detected,available = check_camera_status() # detecta e verifica o camera
+        # Verifica GPS
+        if(AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE ==1):
+            fix, sig_str, sat_num = chk_gps3() # modificado para teste
+        else:
+            fix, sig_str, sat_num = None,None,None
+    else:
+        print("central não esta rodando...")
+        comandext = "sudo pkill camera"
+        out1=run_bash_command(comandext)
+        print(out1)
+        detected,available = check_camera_status2() # detecta e verifica o camera
+        if(AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE ==1):
+            fix, sig_str, sat_num = initialize_and_read_gps(port, baudrate,final_baudrate)
+        else:
+            fix, sig_str, sat_num = None,None,None
     
     #Verify modem and signal
     if AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE ==1: # 0 master sem slave / 1 master com slave / 2 e slave
@@ -872,7 +1014,7 @@ def main():
     interface_e = chk_ethernet_interface() # Verifica se existe porta ethernet
     interface_wlan = chk_wlan_interface() # Verifica se o wifi esta funcional
     temperature= temp_system() # Verifica temperatura do sistema
-    if temperature >= 85:
+    if temperature >= 95:
         var.append("Temperatura alta\n")
         print("Temperatura alta")
     else:

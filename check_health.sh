@@ -56,7 +56,7 @@ check_health_daemon_systemd(){
 
     echo "Checando configuração daemon health monitor" #>> $LOG_FILE
 
-    HEALTH_MONITOR_SYSTEMD_FILE_CONFIG_DESIRED_CONTENT="[Unit]\nDescription=CHECKING_HEALTH\nAfter=network.target\nStartLimitIntervalSec=60\nStartLimitBurst=5\n[Service]\nType=simple\nRestart=always\nRestartSec=300\nExecStart=/usr/bin/sudo /usr/bin/python3 /home/pi/.monitor/daemon_check_driver.py\nStandardOutput=file:/var/log/checking_health.log\nStandardError=file:/var/log/checking_health.err\n\n[Install]\nWantedBy=multi-user.target"
+    HEALTH_MONITOR_SYSTEMD_FILE_CONFIG_DESIRED_CONTENT="[Unit]\nDescription=CHECKING_HEALTH\nAfter=network.target\nStartLimitIntervalSec=60\nStartLimitBurst=5\n[Service]\nType=simple\nRestart=always\nRestartSec=10\nExecStart=/usr/bin/sudo /usr/bin/python3 /home/pi/.monitor/daemon_check_driver_csv.py\nStandardOutput=file:/var/log/checking_health.log\nStandardError=file:/var/log/checking_health.err\n\n[Install]\nWantedBy=multi-user.target"
 
     echo -en $HEALTH_MONITOR_SYSTEMD_FILE_CONFIG_DESIRED_CONTENT #>> $LOG_FILE
 
