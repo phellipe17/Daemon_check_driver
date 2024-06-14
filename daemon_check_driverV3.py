@@ -151,8 +151,12 @@ def read_gps_data(ser, duration=2):
 def parse_gps_data(gps_data):
     num_satellites = 0
     signal_quality = 0
-    
+    fix_status = "No Fix"  # Default status
+
     for line in gps_data:
+        if line.startswith('Received line:'):
+            line = line.split('Received line:')[1].strip()
+
         if line.startswith('$GPGSV'):
             parts = line.split(',')
             try:
@@ -168,8 +172,22 @@ def parse_gps_data(gps_data):
                 num_satellites = int(parts[7])
             except (ValueError, IndexError):
                 continue
-    
-    return num_satellites, signal_quality
+        elif line.startswith('$GNGSA'):
+            parts = line.split(',')
+            try:
+                # Check fix type
+                if parts[1] == 'A':  # A for Auto
+                    fix_type = parts[2]
+                    if fix_type == '1':
+                        fix_status = "1D"
+                    elif fix_type == '2':
+                        fix_status = "2D"
+                    elif fix_type == '3':
+                        fix_status = "3D"
+            except (ValueError, IndexError):
+                continue
+
+    return num_satellites, signal_quality, fix_status
   
 
 def chk_gps3():
@@ -178,9 +196,17 @@ def chk_gps3():
     
     try:
         with serial.Serial(gps_device_fd, baudrate=9600, timeout=1) as ser:
-            for _ in range(1024):
+            start_time = time.time()
+            while True:
                 line = ser.readline().decode('utf-8', errors='ignore')
-                gps_data += line
+                if line:
+                    gps_data += line
+                # Verificar se o tempo limite foi atingido
+                if time.time() - start_time > 5:
+                    if not gps_data:
+                        print("Timeout: No data received from GPS within 5 seconds")
+                        return "No Fix", "0", "0"
+                    break
     except serial.SerialException as e:
         print(f"Erro ao acessar o dispositivo serial: {e}")
         return "No Fix", "0", "0"
@@ -239,6 +265,7 @@ def chk_gps3():
     sat_num = f"{round(avg_num_satellites)}" if num_satellites is not None else '0'
 
     return fix, sig_str, sat_num
+
     
 def chk_dial_modem():
     modem_command = 'ip addr | grep -ia ppp0'
@@ -781,14 +808,15 @@ def initialize_and_read_gps(port, baudrate, final_baudrate):
     
     if ser:
         gps_data = read_gps_data(ser, duration=3)
-        num_satellites, signal_quality = parse_gps_data(gps_data)
+        num_satellites, signal_quality,Fix = parse_gps_data(gps_data)
         
         print(f"Number of satellites: {num_satellites}")
         print(f"Signal quality: {signal_quality}")
+        print(f"GPS Fix: {Fix}")
         
         close_serial_connection(ser)
         
-    return gps_data
+    return Fix, signal_quality, num_satellites
 
 def main():
     # print("Passei aqui.." + current_time_pi())
@@ -820,9 +848,6 @@ def main():
     
     api_thread = threading.Thread(target=enviar_para_api, args=(path_e,pathdriver))
     api_thread.start() # Inicia a thread de postar na api
-    gps_data = initialize_and_read_gps(port, baudrate,final_baudrate)
-    # for data in gps_data:
-    #     print(data)
     ig = checking_ignition() # checa ignição
     current_time = current_time_pi() # busca data em que foi rodado o script
     total_size,free_size,size = get_machine_storage() #busca informações de armazenamento
@@ -830,9 +855,8 @@ def main():
     if(ig == 1):
         print("Ignição ligada, Sem verificacao de foto com raspistill...") 
         detected,available = check_camera_status() # detecta e verifica o camera
-        
         # Verifica GPS
-        if(AS1_CAMERA_TYPE==0):
+        if(AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE ==1):
             fix, sig_str, sat_num = chk_gps3() # modificado para teste
         else:
             fix, sig_str, sat_num = None,None,None
@@ -842,6 +866,10 @@ def main():
         out1=run_bash_command(comandext)
         print(out1)
         detected,available = check_camera_status2() # detecta e verifica o camera
+        if(AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE ==1):
+            fix, sig_str, sat_num = initialize_and_read_gps(port, baudrate,final_baudrate)
+        else:
+            fix, sig_str, sat_num = None,None,None
         
         
     conncetion_chk = check_internet() # verifica se tem conexão com a internet
