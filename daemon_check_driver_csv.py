@@ -912,7 +912,6 @@ def is_serial_port_in_use(port):
 def main():
     answer = ""
     var=[]
-    port = '/dev/serial0'
     baudrate = 9600  # Inicialmente abrir com 9600 para enviar comandos
     final_baudrate = 115200  # Baudrate desejado
     #log_file_path = f'/home/pi/.monitor/logs/current/{daemon_name}.log'
@@ -926,7 +925,7 @@ def main():
     ip_extra="10.0.89.11"
     ip_interna="10.0.90.196"
     ip_externa="10.0.90.195"
-    port_seriial="/dev/serial0"
+    port_serial="/dev/serial0"
     baudrate = 9600  # Inicialmente abrir com 9600 para enviar comandos
     final_baudrate = 115200  # Baudrate desejado
     
@@ -968,25 +967,6 @@ def main():
     else:
         connect_extra= '0'
     
-
-    if(central == 1):
-        print("central esta rodando...") 
-        detected,available = check_camera_status() # detecta e verifica o camera
-        # Verifica GPS
-        if(AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE ==1):
-            fix, sig_str, sat_num = chk_gps3() # modificado para teste
-        else:
-            fix, sig_str, sat_num = None,None,None
-    else:
-        print("central não esta rodando...")
-        comandext = "sudo pkill camera"
-        out1=run_bash_command(comandext)
-        print(out1)
-        detected,available = check_camera_status2() # detecta e verifica o camera
-        if(AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE ==1):
-            fix, sig_str, sat_num = initialize_and_read_gps(port, baudrate,final_baudrate)
-        else:
-            fix, sig_str, sat_num = None,None,None
     
     #Verify modem and signal
     if AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE ==1: # 0 master sem slave / 1 master com slave / 2 e slave
@@ -1052,13 +1032,13 @@ def main():
     else:
         print("Central desligado, checando foto com raspistill e gps...")
         comandext = "sudo pkill camera"
-        out1=run_bash_command(comandext)
-        print(out1)
+        out=run_bash_command(comandext)
+        print(out)
         detected,available = check_camera_status2() # detecta e verifica o camera
         if int(available) == 0:
             var.append("Erro na camera\n")
         if AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE ==1: # Verifica GPS
-            fix, sig_str, sat_num = initialize_and_read_gps(port_seriial, baudrate, final_baudrate)
+            fix, sig_str, sat_num = initialize_and_read_gps(port_serial, baudrate, final_baudrate)
         else:
             fix, sig_str, sat_num = None,None,None
     
