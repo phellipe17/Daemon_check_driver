@@ -10,8 +10,8 @@ StartLimitBurst=5
 [Service]
 Type=simple
 Restart=always
-RestartSec=300
-ExecStart=/usr/bin/sudo /usr/bin/python3 /home/pi/.monitor/daemon_check_driver.py
+RestartSec=15
+ExecStart=/usr/bin/sudo /usr/bin/python3 /home/pi/.monitor/daemon_check_driver_csv.py
 StandardOutput=append:/var/log/checking_health.log
 StandardError=append:/var/log/checking_health.err
 

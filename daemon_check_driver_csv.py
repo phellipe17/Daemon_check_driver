@@ -423,19 +423,19 @@ def check_camera_status():
         
     return detected, available
 
-# def check_camera_status2():
-#     try:
-#        subprocess.run(["raspistill", "-o", "/tmp/camera_test.jpg", "-w", "640", "-h", "480"], check=True,stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-#        available = " YES "
-#     except subprocess.CalledProcessError as e:
-#        available = f" NO - error no:({e.returncode})"
+def check_camera_status2():
+    try:
+       subprocess.run(["raspistill", "-o", "/tmp/camera_test.jpg"], check=True,stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+       available = " 1 "
+    except subprocess.CalledProcessError as e:
+       available = " 0 "
     
-#     command = "vcgencmd get_camera"
-#     output, error = run_bash_command(command)
-#     detected = " YES ", "green" if "detected=1" in output else " NO "
-#     connected = " YES " if "supported=1" in output else " NO "
+    command = "vcgencmd get_camera"
+    output, error = run_bash_command(command)
+    detected = " 1 " if "detected=1" in output else " 0 "
+    # connected = " YES " if "supported=1" in output else " NO "
         
-#     return detected, connected, available  
+    return detected, available  
 
 def swap_memory():
     log("teste swap memoria")
@@ -770,12 +770,147 @@ def send_email_message(placa, problema, csv_file_path, mode="cdl", error_message
     mailserver.login("cco@motora.ai", password)
     mailserver.send_message(msg)
     mailserver.quit()
+
+def open_serial_connection(port, baudrate):
+    try:
+        ser = serial.Serial(port, baudrate, timeout=1)
+        print(f"Port {port} opened successfully")
+        return ser
+    except serial.SerialException as e:
+        print(f"Error opening port {port}: {e}")
+        return None
+
+def close_serial_connection(ser):
+    if ser.is_open:
+        ser.close()
+        print(f"Port {ser.port} closed successfully")
+
+def set_gps_baudrate(ser, baudrate=115200):
+    try:
+        ser.write(f"$PMTK251,{baudrate}*1F\r\n".encode())
+        time.sleep(1)  # Aguarde para que o comando seja processado
+        ser.baudrate = baudrate
+        print(f"Set GPS baudrate to: {baudrate} kbps")
+    except serial.SerialException as e:
+        print(f"Error setting GPS baudrate: {e}")
+
+def set_gnss_mode(ser):
+    try:
+        ser.write(b"$PMTK353,1,1,1,1,0*2B\r\n")  # Comando para definir o modo GNSS
+        time.sleep(1)  # Aguarde para que o comando seja processado
+        print("Set GNSS mode")
+    except serial.SerialException as e:
+        print(f"Error setting GNSS mode: {e}")
+
+def read_gps_data(ser, duration=2):
+    start_time = time.time()
+    gps_data = []
     
+    while (time.time() - start_time) < duration:
+        try:
+            line = ser.readline().decode('utf-8', errors='ignore').strip()
+            if line:
+                print(f"Received line: {line}")
+                gps_data.append(line)
+        except serial.SerialException as e:
+            print(f"Error reading from serial port: {e}")
+            break
+    return gps_data
+
+def parse_gps_data(gps_data):
+    num_satellites = 0
+    signal_quality = 0
+    fix_status = "No Fix"  # Default status
+
+    for line in gps_data:
+        if line.startswith('Received line:'):
+            line = line.split('Received line:')[1].strip()
+
+        if line.startswith('$GPGSV'):
+            parts = line.split(',')
+            try:
+                num_satellites = int(parts[3])
+                for i in range(7, len(parts), 4):
+                    if i < len(parts) and parts[i].isdigit():
+                        signal_quality = max(signal_quality, int(parts[i]))
+            except (ValueError, IndexError):
+                continue
+        elif line.startswith('$GPGGA'):
+            parts = line.split(',')
+            try:
+                num_satellites = int(parts[7])
+            except (ValueError, IndexError):
+                continue
+        elif line.startswith('$GPRMC'):
+            parts = line.split(',')
+            try:
+                # Check fix status
+                if parts[2] == 'A':
+                    fix_status = "A"  # A for Active, V for Void
+            except (ValueError, IndexError):
+                continue
+        elif line.startswith('$GNGSA'):
+            parts = line.split(',')
+            try:
+                # Check fix type
+                if parts[1] == 'A':  # A for Auto
+                    fix_type = parts[2]
+                    if fix_type == '1':
+                        fix_status = "No fix"
+                    elif fix_type == '2':
+                        fix_status = "2D"
+                    elif fix_type == '3':
+                        fix_status = "3D"
+            except (ValueError, IndexError):
+                continue
+
+    return num_satellites, signal_quality, fix_status
+    
+def initialize_and_read_gps(port, baudrate, final_baudrate):
+    ser = open_serial_connection(port, baudrate)
+    if ser:
+        # Configurar baudrate e GNSS
+        set_gps_baudrate(ser, final_baudrate)
+        set_gnss_mode(ser)
+        
+        # Fechar e reabrir a conexão serial com o baudrate atualizado
+        close_serial_connection(ser)
+        time.sleep(1)  # Aguarde um segundo antes de reabrir
+        ser = open_serial_connection(port, final_baudrate)
+    
+    if ser:
+        gps_data = read_gps_data(ser, duration=3)
+        num_satellites, signal_quality,fix_status = parse_gps_data(gps_data)
+        
+        print(f"Number of satellites: {num_satellites}")
+        print(f"Signal quality: {signal_quality}")
+        print(f"Fix status: {fix_status}")
+        
+        close_serial_connection(ser)
+        
+    return fix_status, signal_quality, num_satellites
+    
+def check_central_enable():
+    command = "pgrep central"
+    output, error = run_bash_command(command)
+    if output != "":
+        return 1
+    else:
+        return 0
+
+def is_serial_port_in_use(port):
+    for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+        try:
+            for cmd in proc.info['cmdline']:
+                if port in cmd:
+                    return True
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            pass
+    return False
         
 
 def main():
     answer = ""
-    problema=0
     var=[]
     #log_file_path = f'/home/pi/.monitor/logs/current/{daemon_name}.log'
     # log_file_path = '/var/log/checking_health.log'
@@ -788,6 +923,9 @@ def main():
     ip_extra="10.0.89.11"
     ip_interna="10.0.90.196"
     ip_externa="10.0.90.195"
+    port_seriial="/dev/serial0"
+    baudrate = 9600  # Inicialmente abrir com 9600 para enviar comandos
+    final_baudrate = 115200  # Baudrate desejado
     
     # Saving the configuration parameters
     AS1_BRIDGE_MODE = int(config.get("BRIDGE_MODE", ""))
@@ -808,16 +946,7 @@ def main():
          vehicle_plate = select_field_from_table(conn, "placa", "vehicle_config")
     
     if check_rfid_log() != "":
-        problema=1
         var.append("RFID não detectado\n")
-    
-    # Verify GPS
-    if(AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE ==1):
-        fix, sig_str, sat_num = chk_gps3()
-        if fix == None or sig_str == None or sat_num == None:
-            problema=1
-    else:
-        fix, sig_str, sat_num = None,None,None
     
     # Verify connection between internal and external cameras
     if AS1_CAMERA_TYPE == 0:
@@ -855,7 +984,6 @@ def main():
     if AS1_CAMERA_TYPE == 0:
         Ard = chk_ttyARD()
         if int(Ard) == 0:
-            problema=1
             var.append("Arduino não detectado\n")
             
     else:
@@ -872,22 +1000,45 @@ def main():
     interface_e = chk_ethernet_interface() # Verifica se existe porta ethernet
     interface_wlan = chk_wlan_interface() # Verifica se o wifi esta funcional
     temperature= temp_system() # Verifica temperatura do sistema
-    if temperature >= 85:
+    if temperature > 90:
         var.append("Temperatura alta\n")
         print("Temperatura alta")
     else:
         print("Temperatura normal")    
     macmac=get_mac() # Verifica o mac adress
-    detected,available = check_camera_status()
-    if int(available) == 0:
-        problema=1
-    macmac=get_mac()
     network_usage = get_network_usage()
     voltage = check_voltage()
     disk_io = get_disk_io()
     uptime = get_system_uptime()
     #clear_log_file(log_file_path)  # Apaga o conteúdo do arquivo de log ao iniciar
     # current_time = time.strftime('%Y-%m-%d %H:%M:%S')
+    
+    if check_central_enable() == 1:
+        print("Central ligado, verificado de forma normal...")
+        detected,available = check_camera_status() # detecta e verifica o camera
+        if int(available) == 0:
+            var.append("Erro na camera\n")
+        # Verifica GPS
+        if AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE ==1:
+            fix, sig_str, sat_num = chk_gps3() # modificado para teste
+            if fix == None or sig_str == None or sat_num == None:
+                var.append("GPS não detectado\n")
+        else:
+            fix, sig_str, sat_num = None,None,None
+            
+       
+    else:
+        print("Central desligado, checando foto com raspistill e gps...")
+        comandext = "sudo pkill camera"
+        out1=run_bash_command(comandext)
+        print(out1)
+        detected,available = check_camera_status2() # detecta e verifica o camera
+        if int(available) == 0:
+            var.append("Erro na camera\n")
+        if AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE ==1: # Verifica GPS
+            fix, sig_str, sat_num = initialize_and_read_gps(port_seriial, baudrate, final_baudrate)
+        else:
+            fix, sig_str, sat_num = None,None,None
     
     data = [
         ["counter", counter_id],
@@ -949,7 +1100,7 @@ def main():
     if check_dmesg_for_errors() != None:
         var.extend(check_dmesg_for_errors())
     print(f"tamanho do vetor var:  {len(var)}")
-    if(len(var) > 0 or problema == 1):
+    if(len(var) > 0):
         #sending Json--------------------------------------    
         # json_data= json.dumps(data_jotason)
         # print(json_data)

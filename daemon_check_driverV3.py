@@ -151,8 +151,12 @@ def read_gps_data(ser, duration=2):
 def parse_gps_data(gps_data):
     num_satellites = 0
     signal_quality = 0
-    
+    fix_status = "No Fix"  # Default status
+
     for line in gps_data:
+        if line.startswith('Received line:'):
+            line = line.split('Received line:')[1].strip()
+
         if line.startswith('$GPGSV'):
             parts = line.split(',')
             try:
@@ -168,8 +172,30 @@ def parse_gps_data(gps_data):
                 num_satellites = int(parts[7])
             except (ValueError, IndexError):
                 continue
-    
-    return num_satellites, signal_quality
+        elif line.startswith('$GPRMC'):
+            parts = line.split(',')
+            try:
+                # Check fix status
+                if parts[2] == 'A':
+                    fix_status = "A"  # A for Active, V for Void
+            except (ValueError, IndexError):
+                continue
+        elif line.startswith('$GNGSA'):
+            parts = line.split(',')
+            try:
+                # Check fix type
+                if parts[1] == 'A':  # A for Auto
+                    fix_type = parts[2]
+                    if fix_type == '1':
+                        fix_status = "No fix"
+                    elif fix_type == '2':
+                        fix_status = "2D"
+                    elif fix_type == '3':
+                        fix_status = "3D"
+            except (ValueError, IndexError):
+                continue
+
+    return num_satellites, signal_quality, fix_status
   
 
 def chk_gps3():
@@ -781,14 +807,23 @@ def initialize_and_read_gps(port, baudrate, final_baudrate):
     
     if ser:
         gps_data = read_gps_data(ser, duration=3)
-        num_satellites, signal_quality = parse_gps_data(gps_data)
+        num_satellites, signal_quality,fix_status = parse_gps_data(gps_data)
         
         print(f"Number of satellites: {num_satellites}")
         print(f"Signal quality: {signal_quality}")
+        print(f"Fix status: {fix_status}")
         
         close_serial_connection(ser)
         
-    return gps_data
+    return fix_status, signal_quality, num_satellites
+
+def check_central_enable():
+    command = "pgrep central"
+    output, error = run_bash_command(command)
+    if output != "":
+        return 1
+    else:
+        return 0
 
 def main():
     # print("Passei aqui.." + current_time_pi())
@@ -821,27 +856,33 @@ def main():
     api_thread = threading.Thread(target=enviar_para_api, args=(path_e,pathdriver))
     api_thread.start() # Inicia a thread de postar na api
     gps_data = initialize_and_read_gps(port, baudrate,final_baudrate)
+    print(gps_data)
     # for data in gps_data:
     #     print(data)
     ig = checking_ignition() # checa ignição
     current_time = current_time_pi() # busca data em que foi rodado o script
     total_size,free_size,size = get_machine_storage() #busca informações de armazenamento
     
-    if(ig == 1):
-        print("Ignição ligada, Sem verificacao de foto com raspistill...") 
+    if check_central_enable() == 1:
+        print("Central ligado, verificado de forma normal...")
         detected,available = check_camera_status() # detecta e verifica o camera
-        
         # Verifica GPS
-        if(AS1_CAMERA_TYPE==0):
+        if AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE ==1:
             fix, sig_str, sat_num = chk_gps3() # modificado para teste
         else:
             fix, sig_str, sat_num = None,None,None
+            
+       
     else:
-        print("Ignição desligada, checando foto com raspistill e gps...")
+        print("Central desligado, checando foto com raspistill e gps...")
         comandext = "sudo pkill camera"
         out1=run_bash_command(comandext)
         print(out1)
         detected,available = check_camera_status2() # detecta e verifica o camera
+        if AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE ==1: # Verifica GPS
+            fix, sig_str, sat_num = initialize_and_read_gps(port, baudrate, final_baudrate)
+        else:
+            fix, sig_str, sat_num = None,None,None
         
         
     conncetion_chk = check_internet() # verifica se tem conexão com a internet
