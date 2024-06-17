@@ -23,25 +23,7 @@ pathe="/home/pi/.driver_analytics/database/check_health_e.db"
 pathi="/home/pi/.driver_analytics/database/check_health_i.db"
 pathdriver="/home/pi/.driver_analytics/database/driveranalytics.db"
 
-#from daemonize import Daemonize
-# daemon_name = 'chk_status'
 
-# def color(msg, collor):
-#     coloring=False #False para não imprimir com cor, True para sair com cor
-    
-#     if coloring==False:
-#         return msg
-#     else:
-#         if collor == "green":
-#             return f'\033[1;32;40m{msg}\033[0m'
-#         elif collor == "red":
-#             return f'\033[1;31;40m{msg}\033[0m'
-#         elif collor == "yellow":
-#             return f'\033[1;33;40m{msg}\033[0m'
-#         elif collor == "magenta":
-#             return f'\033[1;35;40m{msg}\033[0m'
-
-# This function runs a shell command specified as command and returns its standard output and standard error as strings.
 def run_bash_command(command):
     process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     output, error = process.communicate()
@@ -204,9 +186,17 @@ def chk_gps3():
     
     try:
         with serial.Serial(gps_device_fd, baudrate=9600, timeout=1) as ser:
-            for _ in range(1024):
+            start_time = time.time()
+            while True:
                 line = ser.readline().decode('utf-8', errors='ignore')
-                gps_data += line
+                if line:
+                    gps_data += line
+                # Verificar se o tempo limite foi atingido
+                if time.time() - start_time > 5:
+                    if not gps_data:
+                        print("Timeout: No data received from GPS within 5 seconds")
+                        return "No Fix", "0", "0"
+                    break
     except serial.SerialException as e:
         print(f"Erro ao acessar o dispositivo serial: {e}")
         return "No Fix", "0", "0"
@@ -265,6 +255,7 @@ def chk_gps3():
     sat_num = f"{round(avg_num_satellites)}" if num_satellites is not None else '0'
 
     return fix, sig_str, sat_num
+
     
 def chk_dial_modem():
     modem_command = 'ip addr | grep -ia ppp0'

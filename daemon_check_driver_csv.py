@@ -753,7 +753,7 @@ def send_email_message(placa, problema, csv_file_path, mode="cdl", error_message
 
     msg['Subject'] = subject
     msg['From'] = "cco@motora.ai"
-    msg['To'] = "joao.guimaraes@motora.ai, phellipe.santos@motora.ai"
+    msg['To'] = "joao.guimaraes@motora.ai, phellipe.santos@motora.ai, luiz@motora.ai"
 
     if csv_file_path:
         part = MIMEBase('application', 'octet-stream')
@@ -912,6 +912,9 @@ def is_serial_port_in_use(port):
 def main():
     answer = ""
     var=[]
+    port = '/dev/serial0'
+    baudrate = 9600  # Inicialmente abrir com 9600 para enviar comandos
+    final_baudrate = 115200  # Baudrate desejado
     #log_file_path = f'/home/pi/.monitor/logs/current/{daemon_name}.log'
     # log_file_path = '/var/log/checking_health.log'
     conn = create_connection(pathdriver)
@@ -965,6 +968,25 @@ def main():
     else:
         connect_extra= '0'
     
+
+    if(central == 1):
+        print("central esta rodando...") 
+        detected,available = check_camera_status() # detecta e verifica o camera
+        # Verifica GPS
+        if(AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE ==1):
+            fix, sig_str, sat_num = chk_gps3() # modificado para teste
+        else:
+            fix, sig_str, sat_num = None,None,None
+    else:
+        print("central não esta rodando...")
+        comandext = "sudo pkill camera"
+        out1=run_bash_command(comandext)
+        print(out1)
+        detected,available = check_camera_status2() # detecta e verifica o camera
+        if(AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE ==1):
+            fix, sig_str, sat_num = initialize_and_read_gps(port, baudrate,final_baudrate)
+        else:
+            fix, sig_str, sat_num = None,None,None
     
     #Verify modem and signal
     if AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE ==1: # 0 master sem slave / 1 master com slave / 2 e slave
