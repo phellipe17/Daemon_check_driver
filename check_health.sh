@@ -6,7 +6,7 @@ check_udev_rules() {
         if grep -q "ttyMDN" /etc/udev/rules.d/40-usb-serial.rules; then
             echo "ttyMDN* exists"
         else
-            echo -e '\n#info modem \nKERNEL=="ttyUSB*", KERNELS=="1-1.5:1.3", SYMLINK="ttyMDN", MODE="0777"' | sudo tee -a /etc/udev/rules.d/40-usb-serial.rules >> /dev/null
+            echo -e '#info modem \nKERNEL=="ttyUSB*", KERNELS=="1-1.5:1.3", SYMLINK="ttyMDN", MODE="0777"' | sudo tee -a /etc/udev/rules.d/40-usb-serial.rules >> /dev/null
             sudo udevadm control --reload-rules
             if [ $? -eq 0 ]; then
                 echo "Regras UDEV recarregadas"
@@ -113,12 +113,13 @@ check_udev_if_needed(){
     fi
 }
 
-check_pip3_installed(){
+check_pip3_installed() {
     if python3 -c "import pip" &>/dev/null; then
         echo "pip3 is already installed."
     else
         echo "pip3 is not installed."
-        sudo apt-get install python3-pip
+        sudo apt-get update
+        sudo apt-get install -y python3-pip
     fi
 }
 
@@ -127,13 +128,10 @@ check_psutil_installed(){
         echo "psutil is already installed."
     else
         echo "psutil is not installed."
-        sudo pip3 install psutil
+        sudo pip3 install --upgrade psutil
     fi
 }
 
-upgrde_psutil(){
-    sudo pip3 install --upgrade psutil
-}
 
 cp_daemon_check_driver(){
     if [ -f $HEALTH_MONITOR_PATH"/daemon_check_driverV3.py" ]; then
@@ -145,7 +143,7 @@ cp_daemon_check_driver(){
             echo "Folder does not exist"
             mkdir $HEALTH_MONITOR_PATH
         fi
-        echo "daemon_check_driver.py does not exist"
+        echo "daemon_check_driverV3.py does not exist"
         sudo cp $HOME_PATH"/daemon_check_driverV3.py" $HEALTH_MONITOR_PATH
     fi
 }
@@ -158,9 +156,7 @@ check_pip3_installed
 
 check_psutil_installed
 
-upgrde_psutil
-
-check_health_daemon_systemd
+#check_health_daemon_systemd
 
 cp_daemon_check_driver
 

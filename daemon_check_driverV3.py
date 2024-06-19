@@ -191,78 +191,63 @@ def parse_gps_data(gps_data):
 def chk_gps3():
     gps_device_fd = "/dev/serial0"
     gps_data = ""
-    
+
     try:
-        with serial.Serial(gps_device_fd, baudrate=9600, timeout=1) as ser:
-            start_time = time.time()
-            while True:
-                line = ser.readline().decode('utf-8', errors='ignore')
-                if line:
-                    gps_data += line
-                # Verificar se o tempo limite foi atingido
-                if time.time() - start_time > 5:
-                    if not gps_data:
-                        print("Timeout: No data received from GPS within 5 seconds")
-                        return "No Fix", "0", "0"
-                    break
-    except serial.SerialException as e:
-        print(f"Erro ao acessar o dispositivo serial: {e}")
+        # Executar o comando cat por 2 segundos e capturar a saída
+        proc = subprocess.Popen(['cat', gps_device_fd], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        time.sleep(2)
+        proc.terminate()
+        
+        stdout, stderr = proc.communicate()
+        gps_data = stdout.decode('utf-8', errors='ignore')
+        
+        if stderr:
+            print(f"Erro ao acessar o dispositivo serial: {stderr.decode('utf-8', errors='ignore')}")
+            return "No Fix", "0", "0"
+
+    except Exception as e:
+        print(f"Erro ao executar o comando cat: {e}")
         return "No Fix", "0", "0"
 
-    validity_status = None
-    num_satellites = None
+    fix_status = "No Fix"
+    num_satellites = 0
+    signal_quality = 0
     countA = 0
     countV = 0
-    fix_values = []
-    snr_values = []
-    satellites = []
 
-    nmea_sentences = gps_data.split('\n')  # Split the GPS data into individual NMEA sentences
+    nmea_sentences = gps_data.split('\n')  # Dividir os dados GPS em sentenças NMEA
     for sentence in nmea_sentences:
         parts = sentence.split(',')
-        if sentence.startswith('$GPGGA') or sentence.startswith('$GNGGA'):
-            # GGA sentence provides fix data
-            try:
+        try:
+            if sentence.startswith('$GPGGA') or sentence.startswith('$GNGGA'):
+                # A sentença GGA fornece dados de fixação
                 num_satellites = int(parts[7])
-                satellites.append(num_satellites)
-            except (IndexError, ValueError):
-                pass
-        elif sentence.startswith('$GPRMC') or sentence.startswith('$GNRMC'):
-            # RMC sentence provides validity status
-            try:
-                validity_status = parts[2]
-                if validity_status == 'A':
+            elif sentence.startswith('$GPRMC') or sentence.startswith('$GNRMC'):
+                # A sentença RMC fornece o status de validade
+                if parts[2] == 'A':
                     countA += 1
                 else:
                     countV += 1
-            except IndexError:
-                pass
-        elif sentence.startswith('$GPGSV') or sentence.startswith('$GNGSV'):
-            # GSV sentence provides signal to noise ratio
-            try:
+            elif sentence.startswith('$GPGSV') or sentence.startswith('$GNGSV'):
+                # A sentença GSV fornece a relação sinal-ruído
                 for i in range(7, len(parts), 4):
                     snr = parts[i]
                     if snr.isdigit():
-                        snr_values.append(int(snr))
-            except IndexError:
-                pass
+                        signal_quality = max(signal_quality, int(snr))
+            elif sentence.startswith('$GNGSA'):
+                # A sentença GSA fornece o tipo de fix
+                if parts[2] == '1':
+                    fix_status = "1D"
+                elif parts[2] == '2':
+                    fix_status = "2D"
+                elif parts[2] == '3':
+                    fix_status = "3D"
+        except (IndexError, ValueError) as e:
+            print(f"Erro ao analisar a sentença: {sentence}, Erro: {e}")
+            continue
 
-    # Determine the result based on parsed information
-    validity_status = 'A' if countA > 1.75 * countV else 'V'
-    avg_snr = sum(snr_values) / len(snr_values) if snr_values else 0
-    avg_num_satellites = sum(satellites) / len(satellites) if satellites else 0
-    avg_fix = sum(fix_values) / len(fix_values) if fix_values else 0
-    fix = "No Fix"
+    return fix_status, str(signal_quality), str(num_satellites)
 
-    if avg_fix > 2 and validity_status == 'A':
-        fix = "3D"
-    elif avg_fix <= 2 and validity_status == 'A':
-        fix = "2D"
-
-    sig_str = f"{round(avg_snr, 2)}" if snr_values else '0'
-    sat_num = f"{round(avg_num_satellites)}" if num_satellites is not None else '0'
-
-    return fix, sig_str, sat_num
 
     
 def chk_dial_modem():
@@ -371,6 +356,7 @@ def check_camera_status():
         timestamp_ultima_msg = time.mktime(time.strptime(data_hora_ultima_msg_str, '%d/%m/%Y %H:%M:%S'))
         # Calcular a diferença de tempo
         diferenca_tempo = time.time() - timestamp_ultima_msg
+        print(diferenca_tempo)
         if(diferenca_tempo > 300):
             available = ' 0 '
 
@@ -806,6 +792,7 @@ def create_connection(db_file):
 
 def initialize_and_read_gps(port, baudrate, final_baudrate):
     ser = open_serial_connection(port, baudrate)
+    print("entrou aonde não deveria")
     if ser:
         # Configurar baudrate e GNSS
         set_gps_baudrate(ser, final_baudrate)
@@ -1019,7 +1006,7 @@ def main():
     AS1_CAMERA_TYPE = int(config.get("CAMERA_TYPE", ""))
     # AS1_NUMBER_OF_SLAVE_DEVICES = int(config.get("NUMBER_OF_SLAVE_DEVICES", ""))
     AS1_ALWAYS_ON_MODE = config.get("ALWAYS_ON_MODE", "") if config.get("ALWAYS_ON_MODE", "") != "" else 0
-    AS1_NUMBER_OF_EXTRA_CAMERAS = int(config.get("NUMBER_OF_EXTRA_CAMERAS", "")) if config.get("NUMBER_OF_EXTRA_CAMERAS", "") != "" else 0    
+    AS1_NUMBER_OF_EXTRA_CAMERAS = int(config.get("NUMBER_OF_EXTRA_CAMERAS", "")) if config.get("NUMBER_OF_EXTRA_CAMERAS", "") != "" else 0   
     
     if flag == 0:
         if AS1_CAMERA_TYPE == 0:
@@ -1066,6 +1053,7 @@ def main():
         connect_int_ext = check_ip_connectivity(ip_externa)
     else:
         connect_int_ext=None
+        var.append("Erro na conexão interna e externa\n")
     
     # Verify always on mode
     modee=AS1_ALWAYS_ON_MODE if AS1_ALWAYS_ON_MODE != '' else 0
@@ -1097,20 +1085,23 @@ def main():
     else:
         Ard = None
     
-    #Verify central status and read camera and gps    
-    if check_central_enable() == 1:
+    #Verify central status and read camera and gps
+    teste = check_central_enable() 
+    print(teste)  
+    if teste == 1:
         print("Central ligado, verificado de forma normal...")
         detected,available = check_camera_status() # detecta e verifica o camera
+        print("passou na camera e vai para o gps")
         if int(available) == 0:
             var.append("Erro na camera\n")
         # Verifica GPS
+        print("entrando no gps")
         if AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE ==1:
             fix, sig_str, sat_num = chk_gps3() # modificado para teste
         else:
             fix, sig_str, sat_num = None,None,None
-            
-       
-    else:
+               
+    elif teste == 0:
         print("Central desligado, checando foto com raspistill e gps...")
         comandext = "sudo pkill camera"
         out1=run_bash_command(comandext)
