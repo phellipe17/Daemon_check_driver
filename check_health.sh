@@ -1,5 +1,5 @@
 HOME_PATH="/home/pi"
-HEALTH_MONITOR_PATH=$HOME_PATH"/.monitor"
+HEALTH_MONITOR_PATH=$HOME_PATH"/.health_monitor"
 
 check_udev_rules() {
     if [ -f /etc/udev/rules.d/40-usb-serial.rules ]; then
@@ -47,7 +47,7 @@ check_health_daemon_systemd(){
     # Type=simple
     # Restart=always
     # RestartSec=300
-    # ExecStart=/usr/bin/sudo /usr/bin/python3 /home/pi/.monitor/daemon_check_driver.py
+    # ExecStart=/usr/bin/sudo /usr/bin/python3 /home/pi/.health_monitor/daemon_check_driver.py
     # StandardOutput=file:/var/log/checking_health.log
     # StandardError=file:/var/log/checking_health.err
     
@@ -56,7 +56,7 @@ check_health_daemon_systemd(){
 
     echo "Checando configuração daemon health monitor" #>> $LOG_FILE
 
-    HEALTH_MONITOR_SYSTEMD_FILE_CONFIG_DESIRED_CONTENT="[Unit]\nDescription=CHECKING_HEALTH\nAfter=network.target\nStartLimitIntervalSec=60\nStartLimitBurst=5\n[Service]\nType=simple\nRestart=always\nRestartSec=10\nExecStart=/usr/bin/sudo /usr/bin/python3 /home/pi/.monitor/daemon_check_driver_csv.py\nStandardOutput=file:/var/log/checking_health.log\nStandardError=file:/var/log/checking_health.err\n\n[Install]\nWantedBy=multi-user.target"
+    HEALTH_MONITOR_SYSTEMD_FILE_CONFIG_DESIRED_CONTENT="[Unit]\nDescription=CHECKING_HEALTH\nAfter=network.target\nStartLimitIntervalSec=60\nStartLimitBurst=5\n[Service]\nType=simple\nRestart=always\nRestartSec=300\nExecStart=/usr/bin/sudo /usr/bin/python3 /home/pi/.health_monitor/daemon_check_driverV3.py\nStandardOutput=file:/var/log/checking_health.log\nStandardError=file:/var/log/checking_health.err\n\n[Install]\nWantedBy=multi-user.target"
 
     echo -en $HEALTH_MONITOR_SYSTEMD_FILE_CONFIG_DESIRED_CONTENT #>> $LOG_FILE
 
@@ -87,8 +87,6 @@ check_health_daemon_systemd(){
     fi
 }
 
-# check_pip3
-
 # check_pyserial
 
 check_python_serial(){
@@ -115,11 +113,56 @@ check_udev_if_needed(){
     fi
 }
 
+check_pip3_installed(){
+    if python3 -c "import pip" &>/dev/null; then
+        echo "pip3 is already installed."
+    else
+        echo "pip3 is not installed."
+        sudo apt-get install python3-pip
+    fi
+}
+
+check_psutil_installed(){
+    if python3 -c "import psutil" &>/dev/null; then
+        echo "psutil is already installed."
+    else
+        echo "psutil is not installed."
+        sudo pip3 install psutil
+    fi
+}
+
+upgrde_psutil(){
+    sudo pip3 install --upgrade psutil
+}
+
+cp_daemon_check_driver(){
+    if [ -f $HEALTH_MONITOR_PATH"/daemon_check_driverV3.py" ]; then
+        echo "daemon_check_driverV3.py exists"
+    else
+        if [ -f $HEALTH_MONITOR_PATH]; then
+            echo "Folder exists"
+        else
+            echo "Folder does not exist"
+            mkdir $HEALTH_MONITOR_PATH
+        fi
+        echo "daemon_check_driver.py does not exist"
+        sudo cp $HOME_PATH"/daemon_check_driverV3.py" $HEALTH_MONITOR_PATH
+    fi
+}
+
 check_udev_if_needed
 
 check_python_serial
 
+check_pip3_installed
+
+check_psutil_installed
+
+upgrde_psutil
+
 check_health_daemon_systemd
+
+cp_daemon_check_driver
 
 exit 1
 

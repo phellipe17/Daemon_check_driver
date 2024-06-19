@@ -24,23 +24,6 @@ pathdriver="/home/pi/.driver_analytics/database/driveranalytics.db"
 #from daemonize import Daemonize
 daemon_name = 'chk_status'
 
-
-def color(msg, collor):
-    
-    coloring=False #False para não imprimir com cor, True para sair com cor
-    
-    if coloring==False:
-        return msg
-    else:
-        if collor == "green":
-            return f'\033[1;32;40m{msg}\033[0m'
-        elif collor == "red":
-            return f'\033[1;31;40m{msg}\033[0m'
-        elif collor == "yellow":
-            return f'\033[1;33;40m{msg}\033[0m'
-        elif collor == "magenta":
-            return f'\033[1;35;40m{msg}\033[0m'
-
 # This function runs a shell command specified as command and returns its standard output and standard error as strings.
 def run_bash_command(command):
     process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -57,19 +40,6 @@ def imu_check():
     else:
         return '0'
         
-
-    # ---- Opcao 2 -----
-    # bus_number = 1
-    # command = f"i2cdetect -y {bus_number}"
-    # result = subprocess.check_output(command, shell=True, text=True)
-    
-    # for line in result.split('\n')[1:]:
-    #     if not line:
-    #         continue
-    #     address_range, *addresses = line.split()
-    #     for address in addresses:
-    #         if address != "--":
-    #             print(f"Device detected at address {address} on bus {bus_number}")
 
 # Verificações de Hardware ------------------------------------------------------------------------------
 
@@ -189,25 +159,6 @@ def clear_log_file(log_file_path):
         file.write("") 
 
     
-#Cheking gps health with bytes
-# def chk_gps2():
-#     gps_device_fd = "/dev/serial0"
-#     gps_device = os.open(gps_device_fd, os.O_RDWR)
-#     gps_data = ""
-#     danger =3
-#     phrase=''
-#     for i in range(1024):
-#         gps_data += os.read(gps_device, 2048).decode('utf-8') 
-#     if "$GNGSA,A,3" in gps_data or "$GNGSA,A,2" in gps_data:
-#         danger="\033[1;32;40mOK\033[0m"
-#         phrase= "\033[1;32;40mINFO SATELLITE\033[0m"
-#     elif "$GPRMC" in gps_data or "$GNRMC" in gps_data:
-#         danger ="\033[1;33;40mOK\033[0m"
-#         phrase= "\033[1;33;40mNOINFO SATELLITE\033[0m"
-#     else:    
-#         danger="\033[1;31;40mNOK\033[0m"
-#         phrase= "\033[1;31;40mERROR\033[0m"
-#     return danger, phrase 
 
 def chk_gps3():
     log("teste gps")
@@ -413,7 +364,7 @@ def check_camera_status():
         timestamp_ultima_msg = time.mktime(time.strptime(data_hora_ultima_msg_str, '%d/%m/%Y %H:%M:%S'))
         # Calcular a diferença de tempo
         diferenca_tempo = time.time() - timestamp_ultima_msg
-        if(diferenca_tempo>60):
+        if(diferenca_tempo>300):
             available=" 0 "
 
     command = "vcgencmd get_camera"
@@ -1103,21 +1054,20 @@ def main():
         var.extend(check_dmesg_for_errors())
     print(f"tamanho do vetor var:  {len(var)}")
     if(len(var) > 0):
+        for item in var:
+            answer += f"{item}\n"
+        send_email_message(vehicle_plate,answer, filename, error_message=None)
+        #sending csv----------------------------------------
+        # url="https://e50e-131-255-23-67.ngrok-free.app/heartbeat"
+        # response = send_csv_to_api(filename, url, answer)
+        # print(response)
+        
         #sending Json--------------------------------------    
         # json_data= json.dumps(data_jotason)
         # print(json_data)
         # headers = {'Content-Type': 'application/json'}
         # url="https://9a61-131-255-22-153.ngrok-free.app/heartbeat"
         # response = requests.post(url, data=json_data, headers=headers)
-        # print(response)
-        #----------------------------------------------------
-        if len(var) > 0:
-            for item in var:
-                answer += f"{item}\n"
-        send_email_message(vehicle_plate,answer, filename, error_message=None)
-        #sending csv----------------------------------------
-        # url="https://e50e-131-255-23-67.ngrok-free.app/heartbeat"
-        # response = send_csv_to_api(filename, url, answer)
         # print(response)
         #----------------------------------------------------
                

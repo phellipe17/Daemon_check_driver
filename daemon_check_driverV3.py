@@ -8,8 +8,16 @@ import sqlite3
 from sqlite3 import Error
 import threading
 from threading import Thread
+import psutil
+import csv
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.base import MIMEBase
+from email import encoders
 
 # Caminho do diretório
+flag = 0 # 0 create database and sent to api, 1 to create a csv file
 directory_path = '/home/pi/.driver_analytics/logs/current/'
 db_lock = threading.Lock()
 r = requests.session()
@@ -363,7 +371,7 @@ def check_camera_status():
         timestamp_ultima_msg = time.mktime(time.strptime(data_hora_ultima_msg_str, '%d/%m/%Y %H:%M:%S'))
         # Calcular a diferença de tempo
         diferenca_tempo = time.time() - timestamp_ultima_msg
-        if(diferenca_tempo > 60):
+        if(diferenca_tempo > 300):
             available = ' 0 '
 
     command = "vcgencmd get_camera"
@@ -412,7 +420,7 @@ def temp_system():
     output, error = run_bash_command(command)
     tempe=round(int(output)/1000)
     
-    return f"{tempe}°" if not error else f"Error: {error}"
+    return tempe if not error else 0
 
 def get_mac():
     command = "ifconfig wlan0 | awk '/ether/ {print $2}'"
@@ -471,7 +479,17 @@ def verificar_e_criar_tabela(path):
             USB_LTE TEXT,
             USB_ARD TEXT,
             Temperature TEXT,
-            Mac_Address TEXT
+            Mac_Address TEXT,
+            Bytes_Sent TEXT,
+            Bytes_Received TEXT,
+            Voltage TEXT,
+            Disk_Read_Count TEXT,
+            Disk_Write_Count TEXT,
+            Disk_Read_Bytes TEXT,
+            Disk_Write_Bytes TEXT,
+            Disk_Read_Time_ms TEXT,
+            Disk_Write_Time_ms TEXT,
+            Uptime_ms TEXT
         )''')
     conn.close()
     
@@ -480,11 +498,13 @@ def adicionar_dados(data,path):
     with db_lock:
         conn = create_connection(path)
         cursor=conn.cursor() 
-        cursor.execute(f''' INSERT INTO health_device (Data, ignition, mode_aways_on, connection_internet, Modem_IP, Signal_modem, Status_modem, connection_extra, 
-        connection_INT_EXT, Expanded, Free_disk, Size_disk, GPS_Fix, Signal_Strength, Avaible_Satellites, Detected_camera, 
-        Available_camera, Active_imu, Swap_usage, CPU_Usage, ETH0_Interface, WLAN_Interface, USB_LTE, USB_ARD, Temperature, 
-        Mac_Address) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ''', data)
+        cursor.execute(''' INSERT INTO health_device (
+            Data, ignition, mode_aways_on, connection_internet, Modem_IP, Signal_modem, Status_modem, connection_extra, 
+            connection_INT_EXT, Expanded, Free_disk, Size_disk, GPS_Fix, Signal_Strength, Avaible_Satellites, Detected_camera, 
+            Available_camera, Active_imu, Swap_usage, CPU_Usage, ETH0_Interface, WLAN_Interface, USB_LTE, USB_ARD, Temperature, 
+            Mac_Address, Bytes_Sent, Bytes_Received, Voltage, Disk_Read_Count, Disk_Write_Count, Disk_Read_Bytes, 
+            Disk_Write_Bytes, Disk_Read_Time_ms, Disk_Write_Time_ms, Uptime_ms) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''', data)
         conn.commit()
         conn.close()
 
@@ -816,6 +836,173 @@ def check_central_enable():
     else:
         return 0
 
+def ler_contador():
+    with open("/home/pi/.health_monitor/counter.txt", "r") as arquivo:
+        return int(arquivo.read().strip())
+
+def escrever_contador(contador):
+    with open("/home/pi/.health_monitor/counter.txt", "w") as arquivo:
+        arquivo.write(str(contador))
+    
+def incrementar_contador_e_usar():
+    contador = ler_contador()
+    contador += 1
+    # print("Contador atual:", contador)
+    escrever_contador(contador)
+
+def inicializar_contador():
+    if not os.path.exists("/home/pi/.health_monitor/counter.txt"):
+        with open("/home/pi/.health_monitor/counter.txt", "w") as arquivo:
+            arquivo.write("0")
+            return 0
+    else:
+        return ler_contador()
+
+def get_disk_io():
+    disk_io = psutil.disk_io_counters(nowrap=True)
+    return {
+        'read_count': disk_io.read_count,
+        'write_count': disk_io.write_count,
+        'read_bytes': disk_io.read_bytes,
+        'write_bytes': disk_io.write_bytes,
+        'read_time': disk_io.read_time,
+        'write_time': disk_io.write_time
+    }
+
+def get_network_usage():
+    net_io = psutil.net_io_counters()
+    return {'bytes_sent': net_io.bytes_sent, 'bytes_recv': net_io.bytes_recv}
+
+def check_voltage():
+    try:
+        voltage_output = subprocess.check_output(['vcgencmd', 'measure_volts']).decode()
+        voltage = float(voltage_output.split('=')[1].strip('V\n'))
+        return voltage
+    except:
+        return None
+
+def get_system_uptime():
+    uptime_seconds = os.popen('awk \'{print $1}\' /proc/uptime').read().strip()
+    uptime_milliseconds = int(float(uptime_seconds) * 1000)
+    return uptime_milliseconds
+
+def check_dmesg_for_errors():
+    # Execute the dmesg command to get the kernel log
+    vet2=[]
+    
+    command = "dmesg | grep -ia 'usb cable is bad'"
+    output,error = run_bash_command(command)
+    if output != "":
+        vet2.append("Maybe USB cable is bad")
+    
+    try:
+        result = subprocess.run(['dmesg'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        dmesg_output = result.stdout
+    except subprocess.CalledProcessError as e:
+        print(f"Erro ao executar dmesg: {e}")
+        return
+    
+    
+    # Verify if the output contains any of the following error messages
+    errors = {
+        "Under-voltage detected!": "Under-voltage",
+        "Over-current detected!": "Over-current",
+        "I/O error": "I/O Error",
+        "device descriptor read/64, error": "USB Device Error",
+        "Out of memory:": "Out of Memory",
+        # "link down": "Network Link Down",
+        # "link up": "Network Link Up",
+        "EXT4-fs error": "Filesystem Corruption",
+        "Failed to start": "Service Start Failure",
+        "Kernel panic": "Kernel Panic"
+    }
+
+    detected_errors = {}
+    
+    for line in dmesg_output.split('\n'):
+        for error_msg, error_desc in errors.items():
+            if error_msg in line:
+                if error_desc not in detected_errors:
+                    detected_errors[error_desc] = []
+                detected_errors[error_desc].append(line)
+
+    # Exibir os erros detectados
+    if detected_errors:
+        print("Erros detectados no dmesg:")
+        for error_desc, messages in detected_errors.items():
+            print(f"\n{error_desc}:")
+            for message in messages:
+                vet2.append(message)
+                print(f"  {message}")
+    
+        return vet2
+    else:
+        print("Nenhum erro detectado no dmesg.")
+    
+def send_email_message(placa, problema, csv_file_path, mode="cdl", error_message=None):
+
+    text_type = 'plain'
+    text = "[PKG] O veículo de placa " + placa + " apresentou o problema " 
+    if mode == "api":
+        text = "[API] O veículo de placa " + placa + " apresentou o problema "  
+    if mode == "cdl":
+        text = "[CDL] O veículo de placa " + placa + ": "+ problema 
+    if mode == "calib":
+        text = "[CALIB] O veículo de placa " + placa + " apresentou o problema " 
+
+    if error_message:
+        text += f"\n\nErro detectado: {error_message}"
+
+    msg = MIMEMultipart()
+    msg.attach(MIMEText(text, text_type, 'utf-8'))
+
+    subject = "[PKG] Veículo com placa " + placa + " está online!"
+    if mode == "api":
+        subject = "[API] Veículo " + placa + " Trocar acesso da empresa!"
+    if mode == "cdl":
+        subject = "[CDL] Veículo com placa " + placa + " apresentou o problema "
+    if mode == "calib":
+        subject = "[CALIB] Veículo com placa " + placa + " está online! Checar calibração!"
+
+    msg['Subject'] = subject
+    msg['From'] = "cco@motora.ai"
+    msg['To'] = "joao.guimaraes@motora.ai, phellipe.santos@motora.ai, luiz@motora.ai"
+
+    if csv_file_path:
+        part = MIMEBase('application', 'octet-stream')
+        with open(csv_file_path, 'rb') as file:
+            part.set_payload(file.read())
+        encoders.encode_base64(part)
+        part.add_header('Content-Disposition', f'attachment; filename={os.path.basename(csv_file_path)}')
+        msg.attach(part)
+
+    mailserver = smtplib.SMTP('smtp.office365.com', 587)
+    mailserver.ehlo()
+    mailserver.starttls()
+    password = "1Q@w3e4r"
+    mailserver.login("cco@motora.ai", password)
+    mailserver.send_message(msg)
+    mailserver.quit()
+
+def check_rfid_log():
+    # Command to verify if the RFID log contains the string 'no rfid found'
+    command = "cat /home/pi/.driver_analytics/logs/current/rfid.log | grep -ia 'no rfid found'"
+    
+    try:
+        # Execute the command and capture the output
+        result,error = run_bash_command(command)
+        
+        # Verify if the output contains the string 'no rfid found'
+        if result != "":
+            print("RFID log contains 'no rfid found'")
+            return "No Rfid Found\n"
+        else:
+            print("RFID log does not contain 'no rfid found'")
+            return ""
+    except subprocess.CalledProcessError as e:
+        print(f"Error executing command: {e}")
+        return "" 
+
 def main():
     # print("Passei aqui.." + current_time_pi())
     port = '/dev/serial0'
@@ -825,38 +1012,97 @@ def main():
     filename="/home/pi/.driver_analytics/mode"
     config=load_config(filename) 
     global token
-    # code = None
+    var=[]
     
     # Guardando os valores das variavel mode em config
     AS1_BRIDGE_MODE = int(config.get("BRIDGE_MODE", ""))
     AS1_CAMERA_TYPE = int(config.get("CAMERA_TYPE", ""))
     # AS1_NUMBER_OF_SLAVE_DEVICES = int(config.get("NUMBER_OF_SLAVE_DEVICES", ""))
     AS1_ALWAYS_ON_MODE = config.get("ALWAYS_ON_MODE", "") if config.get("ALWAYS_ON_MODE", "") != "" else 0
-    AS1_NUMBER_OF_EXTRA_CAMERAS = int(config.get("NUMBER_OF_EXTRA_CAMERAS", "")) if config.get("NUMBER_OF_EXTRA_CAMERAS", "") != "" else 0
+    AS1_NUMBER_OF_EXTRA_CAMERAS = int(config.get("NUMBER_OF_EXTRA_CAMERAS", "")) if config.get("NUMBER_OF_EXTRA_CAMERAS", "") != "" else 0    
     
-    # Verifica se não existe banco e tabela e cria os mesmos
-    if AS1_CAMERA_TYPE == 0:
-        verificar_e_criar_tabela(pathe)
-        path_e=pathe
-    elif AS1_CAMERA_TYPE ==1:
-        verificar_e_criar_tabela(pathi)
-        path_e=pathi
+    if flag == 0:
+        if AS1_CAMERA_TYPE == 0:
+            verificar_e_criar_tabela(pathe)
+            path_e=pathe
+        elif AS1_CAMERA_TYPE ==1:
+            verificar_e_criar_tabela(pathi)
+            path_e=pathi
+        api_thread = threading.Thread(target=enviar_para_api, args=(path_e,pathdriver))
+        api_thread.start() # Inicia a thread de postar na api
+        # Verifica se não existe banco e tabela e cria os mesmos
         
-    # url="https://6207-131-255-21-130.ngrok-free.app/heartbeat"
+    elif flag == 1:
+        counter_id=inicializar_contador()
+        if AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE == 1:
+            filename = "/home/pi/.driver_analytics/logs/driver_analytics_health_e.csv"
+        elif AS1_BRIDGE_MODE == 2:
+            filename = "/home/pi/.driver_analytics/logs/driver_analytics_health_i.csv"
     
-    api_thread = threading.Thread(target=enviar_para_api, args=(path_e,pathdriver))
-    api_thread.start() # Inicia a thread de postar na api
-    gps_data = initialize_and_read_gps(port, baudrate,final_baudrate)
-    print(gps_data)
-    # for data in gps_data:
-    #     print(data)
+    if check_rfid_log() != "":
+        var.append("RFID não detectado\n")
+    
     ig = checking_ignition() # checa ignição
     current_time = current_time_pi() # busca data em que foi rodado o script
     total_size,free_size,size = get_machine_storage() #busca informações de armazenamento
+    disk_io = get_disk_io()         
+    conncetion_chk = check_internet() # verifica se tem conexão com a internet
+    swapa = swap_memory() # Verifica se esta tendo swap de memoria
+    cpu = usage_cpu() # % Verifica uso da cpu
+    interface_e = chk_ethernet_interface() # Verifica se existe porta ethernet
+    interface_wlan = chk_wlan_interface() # Verifica se o wifi esta funcional
+    temperature= temp_system() # Verifica temperatura do sistema
+    if temperature > 90:
+        var.append("Temperatura Alta\n")
+    macmac=get_mac() # Verifica o mac adress
+    network_usage = get_network_usage()
+    voltage=check_voltage()
+    uptime=get_system_uptime()
     
+    # Verify internal and external connection
+    if AS1_CAMERA_TYPE == 0:
+        connect_int_ext = check_ip_connectivity(ip_interna)
+    elif AS1_CAMERA_TYPE ==1:
+        connect_int_ext = check_ip_connectivity(ip_externa)
+    else:
+        connect_int_ext=None
+    
+    # Verify always on mode
+    modee=AS1_ALWAYS_ON_MODE if AS1_ALWAYS_ON_MODE != '' else 0
+    
+    # Verify extra cameras
+    if AS1_NUMBER_OF_EXTRA_CAMERAS >0:
+        connect_extra= check_ip_connectivity(ip_extra)
+    else:
+        connect_extra= None
+    
+    # Verify modem process
+    if AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE ==1: # 0 master sem slave / 1 master com slave / 2 e slave
+        Process_modem = chk_dial_modem()
+        imu = imu_check()
+        signal = modem_signal()
+        status = modem_status()
+        Lte = chk_ttyLTE()
+    else:
+       Process_modem = None
+       imu = None
+       signal = None
+       status = None
+       Lte = None
+    
+    # Verify Arduino
+    if AS1_CAMERA_TYPE == 0:
+        Ard = chk_ttyARD()
+        var.append("Arduino não detectado\n")
+    else:
+        Ard = None
+    
+    #Verify central status and read camera and gps    
     if check_central_enable() == 1:
         print("Central ligado, verificado de forma normal...")
         detected,available = check_camera_status() # detecta e verifica o camera
+        if int(available) == 0:
+            var.append("Erro na camera\n")
         # Verifica GPS
         if AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE ==1:
             fix, sig_str, sat_num = chk_gps3() # modificado para teste
@@ -874,87 +1120,134 @@ def main():
             fix, sig_str, sat_num = initialize_and_read_gps(port, baudrate, final_baudrate)
         else:
             fix, sig_str, sat_num = None,None,None
+    
+    # Verify flag to create a database or create a csv file
+    if flag == 0:
+        data_values=(
+            current_time.strip('\n'),
+            ig, 
+            modee,
+            conncetion_chk,
+            Process_modem, 
+            signal,
+            status,
+            connect_extra,
+            connect_int_ext,
+            total_size,
+            free_size,
+            size,
+            fix, 
+            sig_str,
+            sat_num,
+            detected,
+            available,
+            imu,
+            swapa, 
+            cpu, 
+            interface_e,
+            interface_wlan,
+            Lte,
+            Ard, 
+            str(temperature),
+            macmac.strip(),
+            network_usage["bytes_sent"],
+            network_usage["bytes_recv"],
+            voltage,
+            disk_io['read_count'],
+            disk_io['write_count'],
+            disk_io['read_bytes'],
+            disk_io['write_bytes'],
+            disk_io['read_time'],
+            disk_io['write_time'],
+            uptime
+        ) 
+
+        if AS1_CAMERA_TYPE == 0:
+            adicionar_dados(data_values,pathe) 
+        elif AS1_CAMERA_TYPE ==1:
+            adicionar_dados(data_values,pathi)
+    elif flag == 1:
+        conn = create_connection(pathdriver)
+        with conn:
+         vehicle_plate = select_field_from_table(conn, "placa", "vehicle_config")
+        answer = ""
+        data = [
+        ["counter", counter_id],
+        ["Data", current_time.strip('\n')],
+        ["ignition", ig],
+        ["mode_aways_on", modee],
+        ["connection_internet", conncetion_chk],
+        ["Modem_IP", Process_modem], 
+        ["Signal_modem", signal],
+        ["Status_modem", status],
+        ["connection_extra", connect_extra],
+        ["connection_int_ext", connect_int_ext],
+        ["Expanded", total_size],
+        ["Free_disk", free_size],
+        ["Size_disk", size],
+        ["GPS_Fix", fix], 
+        ["Signal_Strength", sig_str],
+        ["Avaible_Satellites", sat_num],
+        ["Detected_camera", detected],
+        ["Available_camera", available],
+        ["Active", imu],
+        ["Swap_usage", swapa], 
+        ["CPU_Usage", cpu], 
+        ["ETH0_Interface", interface_e],
+        ["WLAN_Interface", interface_wlan],
+        ["USB-LTE", Lte],
+        ["USB_ARD", Ard], 
+        ["Temperature", temperature],
+        ["Mac_Adress", macmac.strip()],
+        ["Bytes_Sent", network_usage["bytes_sent"]],
+        ["Bytes_Received", network_usage["bytes_recv"]],
+        ["Voltage", voltage],
+        ["Disk_Read_Count", disk_io['read_count']],
+        ["Disk_Write_Count", disk_io['write_count']],
+        ["Disk_Read_Bytes", disk_io['read_bytes']],
+        ["Disk_Write_Bytes", disk_io['write_bytes']],
+        ["Disk_Read_Time (ms)", disk_io['read_time']],
+        ["Disk_Write_Time (ms)", disk_io['write_time']],
+        ["Uptime (ms)", uptime]
+        ]
+        with open(filename, mode='a', newline='') as file:
         
-        
-    conncetion_chk = check_internet() # verifica se tem conexão com a internet
-    swapa = swap_memory() # Verifica se esta tendo swap de memoria
-    cpu = usage_cpu() # % Verifica uso da cpu
-    interface_e = chk_ethernet_interface() # Verifica se existe porta ethernet
-    interface_wlan = chk_wlan_interface() # Verifica se o wifi esta funcional
-    temperature= temp_system() # Verifica temperatura do sistema
-    macmac=get_mac() # Verifica o mac adress
+            if os.stat(filename).st_size == 0:
+                fieldnames = []
+                for att in data:
+                    fieldnames.append(att[0])
+                writer = csv.DictWriter(file, fieldnames=fieldnames)
+                writer.writeheader()           
+
+            writer = csv.writer(file)
+
+            stats = []
+            for val in data:
+                stats.append(val[1])
+
+            writer.writerow(stats)
+        incrementar_contador_e_usar()
     
-    # Verifica conexão com interna ou externa
-    if AS1_CAMERA_TYPE == 0:
-        connect_int_ext = check_ip_connectivity(ip_interna)
-    elif AS1_CAMERA_TYPE ==1:
-        connect_int_ext = check_ip_connectivity(ip_externa)
-    else:
-        connect_int_ext=None
-    
-    # Verifica modo ALWAYS ON
-    modee=AS1_ALWAYS_ON_MODE if AS1_ALWAYS_ON_MODE != '' else 0
-    
-    # Verifica Camera extra
-    if AS1_NUMBER_OF_EXTRA_CAMERAS >0:
-        connect_extra= check_ip_connectivity(ip_extra)
-    else:
-        connect_extra= None
-    
-    #Verifica processos do modem
-    if AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE ==1: # 0 master sem slave / 1 master com slave / 2 e slave
-        Process_modem = chk_dial_modem()
-        imu = imu_check()
-        signal = modem_signal()
-        status = modem_status()
-        Lte = chk_ttyLTE()
-    else:
-       Process_modem = None
-       imu = None
-       signal = None
-       status = None
-       Lte = None
-    
-    # Verifica Display
-    if AS1_CAMERA_TYPE == 0:
-        Ard = chk_ttyARD()
-    else:
-        Ard = None
-    
-    
-    data_values=(
-        current_time.strip('\n'),
-        ig, 
-        modee,
-        conncetion_chk,
-        Process_modem, 
-        signal,
-        status,
-        connect_extra,
-        connect_int_ext,
-        total_size,
-        free_size,
-        size,
-        fix, 
-        sig_str,
-        sat_num,
-        detected,
-        available,
-        imu,
-        swapa, 
-        cpu, 
-        interface_e,
-        interface_wlan,
-        Lte,
-        Ard, 
-        temperature,
-        macmac.strip()
-    ) 
-    
-    if AS1_CAMERA_TYPE == 0:
-        adicionar_dados(data_values,pathe) 
-    elif AS1_CAMERA_TYPE ==1:
-        adicionar_dados(data_values,pathi) 
+        if check_dmesg_for_errors() != None:
+            var.extend(check_dmesg_for_errors())
+        print(f"tamanho do vetor var:  {len(var)}")
+        if(len(var) > 0):
+            for item in var:
+                answer += f"{item}\n"
+            send_email_message(vehicle_plate,answer, filename, error_message=None)
+            #sending csv----------------------------------------
+            # url="https://e50e-131-255-23-67.ngrok-free.app/heartbeat"
+            # response = send_csv_to_api(filename, url, answer)
+            # print(response)
+            
+            #sending Json--------------------------------------    
+            # json_data= json.dumps(data_jotason)
+            # print(json_data)
+            # headers = {'Content-Type': 'application/json'}
+            # url="https://9a61-131-255-22-153.ngrok-free.app/heartbeat"
+            # response = requests.post(url, data=json_data, headers=headers)
+            # print(response)
+            #----------------------------------------------------
     
     print("Passei aqui no final.." + current_time_pi())           
 
