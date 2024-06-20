@@ -32,10 +32,15 @@ pathi="/home/pi/.driver_analytics/database/check_health_i.db"
 pathdriver="/home/pi/.driver_analytics/database/driveranalytics.db"
 
 
-def run_bash_command(command):
-    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    output, error = process.communicate()
-    return output.decode(), error.decode()
+def run_bash_command(command, timeout=10):
+    try:
+        process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        output, error = process.communicate(timeout=timeout)
+        return output.decode(), error.decode()
+    except subprocess.TimeoutExpired:
+        process.kill()
+        return "", "Command timed out"
+
 
 
 def imu_check():
@@ -193,17 +198,15 @@ def chk_gps3():
     gps_data = ""
 
     try:
-        # Executar o comando cat por 2 segundos e capturar a saída
-        proc = subprocess.Popen(['cat', gps_device_fd], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        time.sleep(2)
-        proc.terminate()
+        with subprocess.Popen(['cat', gps_device_fd], stdout=subprocess.PIPE, stderr=subprocess.PIPE) as proc:
+            time.sleep(2)
+            proc.terminate()
+            stdout, stderr = proc.communicate()
+            gps_data = stdout.decode('utf-8', errors='ignore')
         
-        stdout, stderr = proc.communicate()
-        gps_data = stdout.decode('utf-8', errors='ignore')
-        
-        if stderr:
-            print(f"Erro ao acessar o dispositivo serial: {stderr.decode('utf-8', errors='ignore')}")
-            return "No Fix", "0", "0"
+            if stderr:
+                print(f"Erro ao acessar o dispositivo serial: {stderr.decode('utf-8', errors='ignore')}")
+                return "No Fix", "0", "0"
 
     except Exception as e:
         print(f"Erro ao executar o comando cat: {e}")
@@ -356,7 +359,6 @@ def check_camera_status():
         timestamp_ultima_msg = time.mktime(time.strptime(data_hora_ultima_msg_str, '%d/%m/%Y %H:%M:%S'))
         # Calcular a diferença de tempo
         diferenca_tempo = time.time() - timestamp_ultima_msg
-        print(diferenca_tempo)
         if(diferenca_tempo > 300):
             available = ' 0 '
 
@@ -384,22 +386,12 @@ def check_camera_status2():
     return detected, available  
 
 def swap_memory():
-    command = "free -h | grep -iA 1 swap | tail -n 1 | awk '{printf \"%.2f\", ($3/$2)*100}'"
-    output, error = run_bash_command(command)
-    
-    if error:
-        return f" Error: {error} "
-    else:
-        return f"{output}%"
+    swap = psutil.swap_memory()
+    return f"{swap.percent:.2f}%" if swap else "Error"
     
 
 def usage_cpu():
-    command = "top -bn1 | grep '^%Cpu(s)' | awk '{print $8}'"                                                     
-    output, error = run_bash_command(command)
-    idle_time = float(output.strip().replace(',', '.'))
-    usage = 100 - idle_time
-    
-    return f" {usage:.2f}% " if not error else f"Error: {error}"
+    return f"{psutil.cpu_percent(interval=1):.2f}%"
             
 def temp_system():
     command = "cat /sys/class/thermal/thermal_zone0/temp"
@@ -791,29 +783,25 @@ def create_connection(db_file):
     return conn
 
 def initialize_and_read_gps(port, baudrate, final_baudrate):
-    ser = open_serial_connection(port, baudrate)
-    print("entrou aonde não deveria")
-    if ser:
-        # Configurar baudrate e GNSS
-        set_gps_baudrate(ser, final_baudrate)
-        set_gnss_mode(ser)
-        
-        # Fechar e reabrir a conexão serial com o baudrate atualizado
-        close_serial_connection(ser)
-        time.sleep(1)  # Aguarde um segundo antes de reabrir
-        ser = open_serial_connection(port, final_baudrate)
-    
-    if ser:
-        gps_data = read_gps_data(ser, duration=3)
-        num_satellites, signal_quality,fix_status = parse_gps_data(gps_data)
-        
-        print(f"Number of satellites: {num_satellites}")
-        print(f"Signal quality: {signal_quality}")
-        print(f"Fix status: {fix_status}")
-        
-        close_serial_connection(ser)
-        
-    return fix_status, signal_quality, num_satellites
+    ser = None
+    try:
+        ser = open_serial_connection(port, baudrate)
+        if ser:
+            set_gps_baudrate(ser, final_baudrate)
+            set_gnss_mode(ser)
+            close_serial_connection(ser)
+            time.sleep(1)
+            ser = open_serial_connection(port, final_baudrate)
+        if ser:
+            gps_data = read_gps_data(ser, duration=3)
+            num_satellites, signal_quality, fix_status = parse_gps_data(gps_data)
+            return fix_status, signal_quality, num_satellites
+    except Exception as e:
+        print(f"Erro ao inicializar e ler dados do GPS: {e}")
+    finally:
+        if ser:
+            close_serial_connection(ser)
+    return "No Fix", "0", "0"
 
 def check_central_enable():
     command = "pgrep central"
@@ -874,57 +862,32 @@ def get_system_uptime():
     return uptime_milliseconds
 
 def check_dmesg_for_errors():
-    # Execute the dmesg command to get the kernel log
-    vet2=[]
-    
+    vet2 = []
     command = "dmesg | grep -ia 'usb cable is bad'"
-    output,error = run_bash_command(command)
-    if output != "":
+    output, error = run_bash_command(command)
+    if output:
         vet2.append("Maybe USB cable is bad")
-    
     try:
         result = subprocess.run(['dmesg'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         dmesg_output = result.stdout
     except subprocess.CalledProcessError as e:
         print(f"Erro ao executar dmesg: {e}")
-        return
-    
-    
-    # Verify if the output contains any of the following error messages
+        return []
     errors = {
         "Under-voltage detected!": "Under-voltage",
         "Over-current detected!": "Over-current",
         "I/O error": "I/O Error",
         "device descriptor read/64, error": "USB Device Error",
         "Out of memory:": "Out of Memory",
-        # "link down": "Network Link Down",
-        # "link up": "Network Link Up",
         "EXT4-fs error": "Filesystem Corruption",
         "Failed to start": "Service Start Failure",
         "Kernel panic": "Kernel Panic"
     }
-
-    detected_errors = {}
-    
-    for line in dmesg_output.split('\n'):
-        for error_msg, error_desc in errors.items():
-            if error_msg in line:
-                if error_desc not in detected_errors:
-                    detected_errors[error_desc] = []
-                detected_errors[error_desc].append(line)
-
-    # Exibir os erros detectados
-    if detected_errors:
-        print("Erros detectados no dmesg:")
-        for error_desc, messages in detected_errors.items():
-            print(f"\n{error_desc}:")
-            for message in messages:
-                vet2.append(message)
-                print(f"  {message}")
-    
-        return vet2
-    else:
-        print("Nenhum erro detectado no dmesg.")
+    for line in dmesg_output.splitlines():
+        for key, value in errors.items():
+            if key in line:
+                vet2.append(value)
+    return vet2
     
 def send_email_message(placa, problema, csv_file_path, mode="cdl", error_message=None):
 
@@ -991,7 +954,7 @@ def check_rfid_log():
         return "" 
 
 def main():
-    # print("Passei aqui.." + current_time_pi())
+    print("Passei aqui inicio..." + current_time_pi())
     port = '/dev/serial0'
     baudrate = 9600  # Inicialmente abrir com 9600 para enviar comandos
     final_baudrate = 115200  # Baudrate desejado
@@ -1087,15 +1050,12 @@ def main():
     
     #Verify central status and read camera and gps
     teste = check_central_enable() 
-    print(teste)  
     if teste == 1:
         print("Central ligado, verificado de forma normal...")
         detected,available = check_camera_status() # detecta e verifica o camera
-        print("passou na camera e vai para o gps")
         if int(available) == 0:
             var.append("Erro na camera\n")
         # Verifica GPS
-        print("entrando no gps")
         if AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE ==1:
             fix, sig_str, sat_num = chk_gps3() # modificado para teste
         else:
@@ -1105,7 +1065,6 @@ def main():
         print("Central desligado, checando foto com raspistill e gps...")
         comandext = "sudo pkill camera"
         out1=run_bash_command(comandext)
-        print(out1)
         detected,available = check_camera_status2() # detecta e verifica o camera
         if AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE ==1: # Verifica GPS
             fix, sig_str, sat_num = initialize_and_read_gps(port, baudrate, final_baudrate)

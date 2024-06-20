@@ -156,7 +156,7 @@ check_pip3_installed
 
 check_psutil_installed
 
-#check_health_daemon_systemd
+check_health_daemon_systemd
 
 cp_daemon_check_driver
 
