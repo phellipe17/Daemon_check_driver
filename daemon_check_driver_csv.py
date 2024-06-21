@@ -612,10 +612,10 @@ def check_rfid_log():
         
         # Verify if the output contains the string 'no rfid found'
         if result != "":
-            print("RFID log contains 'no rfid found'")
+            print("no rfid found")
             return "No Rfid Found\n"
         else:
-            print("RFID log does not contain 'no rfid found'")
+            print("rfid found")
             return ""
     except subprocess.CalledProcessError as e:
         print(f"Error executing command: {e}")
