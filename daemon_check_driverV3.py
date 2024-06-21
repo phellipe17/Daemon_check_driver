@@ -253,30 +253,23 @@ def chk_gps3():
 
 
     
-def chk_dial_modem():
-    modem_command = 'ip addr | grep -ia ppp0'
-    result, error=run_bash_command(modem_command)
-    return ' 1 ' if(result != '') else ' 0 '
+def check_modem():
+    interfaces = psutil.net_if_stats()
+    return "1" if "ppp0" in interfaces and interfaces["ppp0"].isup else "0"
 
-def chk_wlan_interface():
-    wlan_command = 'ip addr show wlan0'
-    result, error = run_bash_command(wlan_command)
-    return ' 1 ' if 'UP' in result else ' 0 '
+def check_wlan_interface():
+    interfaces = psutil.net_if_stats()
+    return "1" if "wlan0" in interfaces and interfaces["wlan0"].isup else "0"
 
-def chk_ethernet_interface():
-    eth_command = 'ip addr show eth0'
-    result, error = run_bash_command(eth_command)
-    return ' 1 ' if 'UP' in result else ' 0 '
+def check_ethernet_interface():
+    interfaces = psutil.net_if_stats()
+    return "1" if "eth0" in interfaces and interfaces["eth0"].isup else "0"
     
-def chk_ttyLTE():
-    command = 'ls /dev/'
-    result,error = run_bash_command(command)
-    return ' 1 ' if 'ttyLTE' in result else ' 0 '
+def check_ttyLTE():
+    return "1" if os.path.exists('/dev/ttyLTE') else "0"
 
-def chk_ttyARD():
-    command = 'ls /dev/'
-    result,error = run_bash_command(command)
-    return ' 1 ' if 'ttyARD' in result else ' 0 '
+def check_ttyARD():
+    return "1" if os.path.exists('/dev/ttyARD') else "0"
 
 def send_serial_command(command):
     try:
@@ -754,7 +747,17 @@ def transformar_em_json(dados):
             "USB_LTE": linha[23],
             "USB_ARD": linha[24],
             "Temperature": linha[25],
-            "Mac_Address": linha[26]
+            "Mac_Address": linha[26],
+            "Bytes_Sent": linha[27],
+            "Bytes_Received": linha[28],
+            "Voltage": linha[29],
+            "Disk_Read_Count": linha[30],
+            "Disk_Write_Count": linha[31],
+            "Disk_Read_Bytes": linha[32],
+            "Disk_Write_Bytes": linha[33],
+            "Disk_Read_Time_ms": linha[34],
+            "Disk_Write_Time_ms": linha[35],
+            "Uptime_ms": linha[36]
         }
         resultado.append(json_linha)
     return resultado
@@ -999,8 +1002,8 @@ def main():
     conncetion_chk = check_internet() # verifica se tem conexão com a internet
     swapa = swap_memory() # Verifica se esta tendo swap de memoria
     cpu = usage_cpu() # % Verifica uso da cpu
-    interface_e = chk_ethernet_interface() # Verifica se existe porta ethernet
-    interface_wlan = chk_wlan_interface() # Verifica se o wifi esta funcional
+    interface_e = check_ethernet_interface() # Verifica se existe porta ethernet
+    interface_wlan = check_wlan_interface() # Verifica se o wifi esta funcional
     temperature= temp_system() # Verifica temperatura do sistema
     if temperature > 90:
         var.append("Temperatura Alta\n")
@@ -1029,11 +1032,11 @@ def main():
     
     # Verify modem process
     if AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE ==1: # 0 master sem slave / 1 master com slave / 2 e slave
-        Process_modem = chk_dial_modem()
+        Process_modem = check_modem()
         imu = imu_check()
         signal = modem_signal()
         status = modem_status()
-        Lte = chk_ttyLTE()
+        Lte = check_ttyLTE()
     else:
        Process_modem = None
        imu = None
@@ -1043,7 +1046,7 @@ def main():
     
     # Verify Arduino
     if AS1_CAMERA_TYPE == 0:
-        Ard = chk_ttyARD()
+        Ard = check_ttyARD()
         var.append("Arduino não detectado\n")
     else:
         Ard = None
