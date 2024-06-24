@@ -140,12 +140,30 @@ cp_daemon_check_driver(){
         if [ -f $HEALTH_MONITOR_PATH]; then
             echo "Folder exists"
         else
-            echo "Folder does not exist"
+            echo "Creating folder"
             mkdir $HEALTH_MONITOR_PATH
         fi
         echo "daemon_check_driverV3.py does not exist"
         sudo cp $HOME_PATH"/daemon_check_driverV3.py" $HEALTH_MONITOR_PATH
     fi
+}
+
+ask_user_create_daemon(){
+    echo "Deseja criar o daemon de monitoramento de saúde do sistema?"
+    echo "1 - Sim"
+    echo "2 - Não"
+    read -p "Escolha uma opção: " option
+    case $option in
+        1)
+            check_health_daemon_systemd
+            ;;
+        2)
+            echo "Daemon não será criado"
+            ;;
+        *)
+            echo "Opção inválida"
+            ;;
+    esac
 }
 
 check_udev_if_needed
@@ -156,7 +174,7 @@ check_pip3_installed
 
 check_psutil_installed
 
-check_health_daemon_systemd
+ask_user_create_daemon
 
 cp_daemon_check_driver
 
