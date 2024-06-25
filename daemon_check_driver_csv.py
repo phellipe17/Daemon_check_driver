@@ -9,6 +9,7 @@ import csv
 import smtplib
 import sqlite3
 from sqlite3 import Error
+from datetime import datetime
 
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -16,7 +17,6 @@ from email.mime.base import MIMEBase
 from email import encoders
 
 # Caminho do diretório
-directory_path = '/home/pi/.driver_analytics/logs/current/'
 r = requests.session()
 DEBUG = False
 pathdriver="/home/pi/.driver_analytics/database/driveranalytics.db"
@@ -54,9 +54,9 @@ def get_disk_usage():
     disk = psutil.disk_usage('/')
     return disk.percent
 
-def get_disk_io():
-    disk_io = psutil.disk_io_counters()
-    return {'read_bytes': disk_io.read_bytes, 'write_bytes': disk_io.write_bytes}
+# def get_disk_io():
+#     disk_io = psutil.disk_io_counters()
+#     return {'read_bytes': disk_io.read_bytes, 'write_bytes': disk_io.write_bytes}
 
 def get_temperature():
     try:
@@ -530,10 +530,17 @@ def inicializar_contador():
         return ler_contador()
     
 def checking_ignition():
-    command="cat /dev/shm/IGNITION_IS_ON"
+    command = "cat /dev/shm/IGNITION_IS_ON"
     output, error = run_bash_command(command)
-    out=int(output)
-    return out
+    
+    if not output:
+        return None
+    
+    try:
+        out = int(output)
+        return out
+    except ValueError:
+        return None
 
 def checking_mode():
     command="cat /home/pi/.driver_analytics/mode | grep -ia always | tail -c 2"
@@ -858,9 +865,22 @@ def is_serial_port_in_use(port):
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
             pass
     return False
+
+def create_directory_if_not_exists(directory_path):
+    # Expande o caminho do diretório (caso haja '~' no caminho)
+    expanded_path = os.path.expanduser(directory_path)
+    
+    # Verifica se o diretório existe, se não, cria o diretório
+    if not os.path.exists(expanded_path):
+        os.makedirs(expanded_path)
+        print(f"Diretório {expanded_path} criado com sucesso.")
+    else:
+        print(f"Diretório {expanded_path} já existe.")
         
 
 def main():
+    directory_path = '/home/pi/.driver_analytics/health/'
+    create_directory_if_not_exists(directory_path)
     answer = ""
     var=[]
     baudrate = 9600  # Inicialmente abrir com 9600 para enviar comandos
@@ -888,11 +908,12 @@ def main():
     AS1_NUMBER_OF_EXTRA_CAMERAS = int(config.get("NUMBER_OF_EXTRA_CAMERAS", "")) if config.get("NUMBER_OF_EXTRA_CAMERAS", "") != "" else 0
     
     #Create table csv identifing extern and intern cameras
+    current_date = datetime.now().strftime('%Y%m%d')
     
     if AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE == 1:
-        filename = "/home/pi/.driver_analytics/logs/driver_analytics_health_e.csv"
+        filename = f"/home/pi/.driver_analytics/health/driver_analytics_health_e_{current_date}.csv"
     elif AS1_BRIDGE_MODE == 2:
-        filename = "/home/pi/.driver_analytics/logs/driver_analytics_health_i.csv"
+        filename = f"/home/pi/.driver_analytics/health/driver_analytics_health_i_{current_date}.csv"
     
     #Connect to database and get the vehicle plate
     with conn:
@@ -1032,21 +1053,17 @@ def main():
         ["Disk_Write_Time (ms)", disk_io['write_time']],
         ["Uptime (ms)", uptime]
     ]
-    with open(filename, mode='a', newline='') as file:
-   
+    with open(filename, mode='a', newline='') as file:  # Use mode='a' para adicionar ao arquivo existente
+        # Verificar se o arquivo está vazio para escrever o cabeçalho
         if os.stat(filename).st_size == 0:
-            fieldnames = []
-            for att in data:
-                fieldnames.append(att[0])
+            fieldnames = [att[0] for att in data]
             writer = csv.DictWriter(file, fieldnames=fieldnames)
-            writer.writeheader()           
+            writer.writeheader()
 
         writer = csv.writer(file)
-        
-        stats = []
-        for val in data:
-            stats.append(val[1])
-        
+
+        stats = [val[1] for val in data]
+
         writer.writerow(stats)
     incrementar_contador_e_usar()
     

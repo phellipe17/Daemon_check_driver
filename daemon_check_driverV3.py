@@ -954,9 +954,21 @@ def check_rfid_log():
             return ""
     except subprocess.CalledProcessError as e:
         print(f"Error executing command: {e}")
-        return "" 
+        return ""
+
+def create_directory_if_not_exists(directory_path):
+    # Expande o caminho do diretório (caso haja '~' no caminho)
+    expanded_path = os.path.expanduser(directory_path)
+    
+    # Verifica se o diretório existe, se não, cria o diretório
+    if not os.path.exists(expanded_path):
+        os.makedirs(expanded_path)
+        print(f"Diretório {expanded_path} criado com sucesso.")
+    else:
+        print(f"Diretório {expanded_path} já existe.") 
 
 def main():
+    directory_path = '/home/pi/.driver_analytics/health/'
     print("Passei aqui inicio..." + current_time_pi())
     port = '/dev/serial0'
     baudrate = 9600  # Inicialmente abrir com 9600 para enviar comandos
@@ -986,11 +998,13 @@ def main():
         # Verifica se não existe banco e tabela e cria os mesmos
         
     elif flag == 1:
+        create_directory_if_not_exists(directory_path)
+        current_date = datetime.now().strftime('%Y%m%d')
         counter_id=inicializar_contador()
         if AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE == 1:
-            filename = "/home/pi/.driver_analytics/logs/driver_analytics_health_e.csv"
+            filename = f"/home/pi/.driver_analytics/health/driver_analytics_health_e_{current_date}.csv"
         elif AS1_BRIDGE_MODE == 2:
-            filename = "/home/pi/.driver_analytics/logs/driver_analytics_health_i.csv"
+            filename = f"/home/pi/.driver_analytics/health/driver_analytics_health_i_{current_date}.csv"
     
     if check_rfid_log() != "":
         var.append("RFID não detectado\n")
@@ -1122,61 +1136,57 @@ def main():
     elif flag == 1:
         conn = create_connection(pathdriver)
         with conn:
-         vehicle_plate = select_field_from_table(conn, "placa", "vehicle_config")
+            vehicle_plate = select_field_from_table(conn, "placa", "vehicle_config")
         answer = ""
         data = [
-        ["counter", counter_id],
-        ["Data", current_time.strip('\n')],
-        ["ignition", ig],
-        ["mode_aways_on", modee],
-        ["connection_internet", conncetion_chk],
-        ["Modem_IP", Process_modem], 
-        ["Signal_modem", signal],
-        ["Status_modem", status],
-        ["connection_extra", connect_extra],
-        ["connection_int_ext", connect_int_ext],
-        ["Expanded", total_size],
-        ["Free_disk", free_size],
-        ["Size_disk", size],
-        ["GPS_Fix", fix], 
-        ["Signal_Strength", sig_str],
-        ["Avaible_Satellites", sat_num],
-        ["Detected_camera", detected],
-        ["Available_camera", available],
-        ["Active", imu],
-        ["Swap_usage", swapa], 
-        ["CPU_Usage", cpu], 
-        ["ETH0_Interface", interface_e],
-        ["WLAN_Interface", interface_wlan],
-        ["USB-LTE", Lte],
-        ["USB_ARD", Ard], 
-        ["Temperature", temperature],
-        ["Mac_Adress", macmac.strip()],
-        ["Bytes_Sent", network_usage["bytes_sent"]],
-        ["Bytes_Received", network_usage["bytes_recv"]],
-        ["Voltage", voltage],
-        ["Disk_Read_Count", disk_io['read_count']],
-        ["Disk_Write_Count", disk_io['write_count']],
-        ["Disk_Read_Bytes", disk_io['read_bytes']],
-        ["Disk_Write_Bytes", disk_io['write_bytes']],
-        ["Disk_Read_Time (ms)", disk_io['read_time']],
-        ["Disk_Write_Time (ms)", disk_io['write_time']],
-        ["Uptime (ms)", uptime]
+            ["counter", counter_id],
+            ["Data", current_time.strip('\n')],
+            ["ignition", ig],
+            ["mode_aways_on", modee],
+            ["connection_internet", conncetion_chk],
+            ["Modem_IP", Process_modem], 
+            ["Signal_modem", signal],
+            ["Status_modem", status],
+            ["connection_extra", connect_extra],
+            ["connection_int_ext", connect_int_ext],
+            ["Expanded", total_size],
+            ["Free_disk", free_size],
+            ["Size_disk", size],
+            ["GPS_Fix", fix], 
+            ["Signal_Strength", sig_str],
+            ["Avaible_Satellites", sat_num],
+            ["Detected_camera", detected],
+            ["Available_camera", available],
+            ["Active", imu],
+            ["Swap_usage", swapa], 
+            ["CPU_Usage", cpu], 
+            ["ETH0_Interface", interface_e],
+            ["WLAN_Interface", interface_wlan],
+            ["USB-LTE", Lte],
+            ["USB_ARD", Ard], 
+            ["Temperature", temperature],
+            ["Mac_Adress", macmac.strip()],
+            ["Bytes_Sent", network_usage["bytes_sent"]],
+            ["Bytes_Received", network_usage["bytes_recv"]],
+            ["Voltage", voltage],
+            ["Disk_Read_Count", disk_io['read_count']],
+            ["Disk_Write_Count", disk_io['write_count']],
+            ["Disk_Read_Bytes", disk_io['read_bytes']],
+            ["Disk_Write_Bytes", disk_io['write_bytes']],
+            ["Disk_Read_Time (ms)", disk_io['read_time']],
+            ["Disk_Write_Time (ms)", disk_io['write_time']],
+            ["Uptime (ms)", uptime]
         ]
-        with open(filename, mode='a', newline='') as file:
-        
+        with open(filename, mode='a', newline='') as file:  # Use mode='a' para adicionar ao arquivo existente
+            # Verificar se o arquivo está vazio para escrever o cabeçalho
             if os.stat(filename).st_size == 0:
-                fieldnames = []
-                for att in data:
-                    fieldnames.append(att[0])
+                fieldnames = [att[0] for att in data]
                 writer = csv.DictWriter(file, fieldnames=fieldnames)
-                writer.writeheader()           
+                writer.writeheader()
 
             writer = csv.writer(file)
 
-            stats = []
-            for val in data:
-                stats.append(val[1])
+            stats = [val[1] for val in data]
 
             writer.writerow(stats)
         incrementar_contador_e_usar()
