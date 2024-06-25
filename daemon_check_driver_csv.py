@@ -8,9 +8,9 @@ import json, requests
 import csv
 import smtplib
 import sqlite3
+
 from sqlite3 import Error
 from datetime import datetime
-
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
