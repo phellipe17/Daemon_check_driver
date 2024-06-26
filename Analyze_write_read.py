@@ -1,50 +1,49 @@
 import pandas as pd
+import matplotlib.pyplot as plt
 import argparse
 import os
 
-# Função para calcular as novas colunas
-def calculate_io_speed(df):
-    # Inicializar as novas colunas com 0
-    df['Disk_write_mb_s'] = 0
-    df['Disk_read_mb_s'] = 0
-    df['Time_diff'] = 0
+def plot_read_write(file_path):
+    # Carregar o arquivo CSV
+    df = pd.read_csv(file_path)
 
-    for i in range(1, len(df)):
-        # Calcular a diferença entre linhas consecutivas para escrita
-        write_bytes_diff = df.loc[i, 'Disk_Write_Bytes'] - df.loc[i - 1, 'Disk_Write_Bytes']
-        read_bytes_diff = df.loc[i, 'Disk_Read_Bytes'] - df.loc[i - 1, 'Disk_Read_Bytes']
-        
-        # Converter bytes para megabytes
-        write_mb_diff = write_bytes_diff / (1024 * 1024)
-        read_mb_diff = read_bytes_diff / (1024 * 1024)
-        
-        # Calcular a diferença de tempo em segundos
-        time_diff = (df.loc[i, 'Uptime (ms)'] - df.loc[i - 1, 'Uptime (ms)']) / 1000
-        
-        # Calcular a taxa de escrita e leitura em MB/s
-        df.loc[i, 'Disk_write_mb_s'] = write_mb_diff / time_diff if time_diff > 0 else 0
-        df.loc[i, 'Disk_read_mb_s'] = read_mb_diff / time_diff if time_diff > 0 else 0
-        df.loc[i, 'Time_diff'] = time_diff if time_diff > 0 else 0
+    # Converter a coluna 'Data' para datetime com o formato especificado
+    df['Data'] = pd.to_datetime(df['Data'], format='%Y/%m/%d %H:%M:%S')
 
-    return df
+    # Extrair a hora da coluna 'Data'
+    df['Hour'] = df['Data'].dt.hour
+
+    # Agrupar por hora e somar os valores de leitura e escrita em MB/s
+    hourly_stats = df.groupby('Hour')[['Disk_write_mb_s', 'Disk_read_mb_s']].sum().reset_index()
+
+    # Plotar o gráfico
+    plt.figure(figsize=(12, 6))
+    plt.plot(hourly_stats['Hour'], hourly_stats['Disk_read_mb_s'], label='Leitura (MB/s)', color='blue')
+    plt.plot(hourly_stats['Hour'], hourly_stats['Disk_write_mb_s'], label='Escrita (MB/s)', color='red')
+    plt.xlabel('Hora do Dia')
+    plt.ylabel('MB/s')
+    plt.title('Quantidade de Escrita e Leitura por Hora do Dia')
+    plt.legend()
+    plt.grid(True)
+    plt.xticks(hourly_stats['Hour'])
+    plt.tight_layout()
+
+    # Obter o diretório do arquivo CSV
+    directory = os.path.dirname(file_path)
+    # Definir o nome do arquivo de saída com o mesmo diretório
+    output_file = os.path.join(directory, os.path.basename(file_path).replace('.csv', '_disk_io_per_hour.png'))
+
+    # Salvar o gráfico como imagem
+    plt.savefig(output_file)
+
+    # Mostrar o gráfico
+    plt.show()
+
+    print(f"Gráfico salvo em: {output_file}")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Calcular a taxa de leitura e escrita em MB/s a partir de um arquivo CSV")
+    parser = argparse.ArgumentParser(description="Gerar gráfico de leitura e escrita por hora do dia a partir de um arquivo CSV")
     parser.add_argument("file_path", type=str, help="Caminho para o arquivo CSV")
     args = parser.parse_args()
 
-    # Carregar o arquivo CSV
-    df = pd.read_csv(args.file_path)
-
-    # Calcular as novas colunas
-    df = calculate_io_speed(df)
-
-    # Definir o nome do arquivo de saída
-    directory = os.path.dirname(args.file_path)
-    base_filename = os.path.basename(args.file_path).replace('.csv', '_updated.csv')
-    output_file_path = os.path.join(directory, base_filename)
-
-    # Salvar o resultado em um novo arquivo CSV
-    df.to_csv(output_file_path, index=False)
-
-    print(f"Arquivo salvo em: {output_file_path}")
+    plot_read_write(args.file_path)

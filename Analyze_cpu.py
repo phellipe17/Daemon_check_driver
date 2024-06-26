@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import argparse
 import os
 
-def plot_cpu_usage(file_path):
+def calculate_hourly_cpu_usage(file_path):
     # Carregar o arquivo CSV
     df = pd.read_csv(file_path)
 
@@ -11,23 +11,23 @@ def plot_cpu_usage(file_path):
     df['Data'] = pd.to_datetime(df['Data'], format='%Y/%m/%d %H:%M:%S')
 
     # Converter a coluna 'CPU_Usage' para float
-    df['CPU_Usage'] = df['CPU_Usage'].str.rstrip('%').astype(float)
+    df['CPU_Usage(%)'] = df['CPU_Usage(%)'].astype(float)
 
     # Extrair a hora da coluna 'Data'
     df['Hour'] = df['Data'].dt.hour
 
     # Agrupar por hora e calcular a média do uso da CPU
-    hourly_stats = df.groupby('Hour')['CPU_Usage'].mean()
+    hourly_stats = df.groupby('Hour')['CPU_Usage(%)'].mean().reset_index()
 
     # Plotar o gráfico
     plt.figure(figsize=(12, 6))
-    plt.plot(hourly_stats.index, hourly_stats, label='Uso de CPU (%)', color='purple')
+    plt.plot(hourly_stats['Hour'], hourly_stats['CPU_Usage(%)'], label='Uso de CPU (%)', color='purple')
     plt.xlabel('Hora do Dia')
     plt.ylabel('Uso de CPU (%)')
     plt.title('Uso de CPU por Hora do Dia')
     plt.legend()
     plt.grid(True)
-    plt.xticks(hourly_stats.index)
+    plt.xticks(hourly_stats['Hour'])
     plt.tight_layout()
 
     # Obter o diretório do arquivo CSV
@@ -41,9 +41,11 @@ def plot_cpu_usage(file_path):
     # Mostrar o gráfico
     plt.show()
 
+    print(f"Gráfico salvo em: {output_file}")
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Gerar gráfico de uso de CPU por hora do dia a partir de um arquivo CSV")
     parser.add_argument("file_path", type=str, help="Caminho para o arquivo CSV")
     args = parser.parse_args()
 
-    plot_cpu_usage(args.file_path)
+    calculate_hourly_cpu_usage(args.file_path)

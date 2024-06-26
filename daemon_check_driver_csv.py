@@ -389,23 +389,13 @@ def check_camera_status2():
     return detected, available  
 
 def swap_memory():
-    log("teste swap memoria")
-    command = "free -h | grep -iA 1 swap | tail -n 1 | awk '{printf \"%.2f\", ($3/$2)*100}'"
-    output, error = run_bash_command(command)
-    
-    if error:
-        return f" Error: {error} "
-    else:
-        return f"{output}%"
+    swap = psutil.swap_memory()
+    return round(swap.percent,2)
     
 
 def usage_cpu():
-    command = "top -bn1 | grep '^%Cpu(s)' | awk '{print $8}'"                                                     
-    output, error = run_bash_command(command)
-    idle_time = float(output.strip().replace(',', '.'))
-    usage = 100 - idle_time
-    
-    return f" {usage:.2f}% " if not error else f"Error: {error}"
+    cpuz=psutil.cpu_percent(interval=1)
+    return round(cpuz,2)
         
 def temp_system():
     command = "cat /sys/class/thermal/thermal_zone0/temp"
@@ -1034,8 +1024,8 @@ def main():
         ["Detected_camera", detected],
         ["Available_camera", available],
         ["Active", imu],
-        ["Swap_usage", swapa], 
-        ["CPU_Usage", cpu], 
+        ["Swap_usage(%)", swapa], 
+        ["CPU_Usage(%)", cpu], 
         ["ETH0_Interface", interface_e],
         ["WLAN_Interface", interface_wlan],
         ["USB-LTE", Lte],

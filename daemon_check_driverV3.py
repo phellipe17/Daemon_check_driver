@@ -19,7 +19,7 @@ from email.mime.base import MIMEBase
 from email import encoders
 
 # Caminho do diretório
-flag = 0 # 0 create database and sent to api, 1 to create a csv file
+flag = 1 # 0 create database and sent to api, 1 to create a csv file
 directory_path = '/home/pi/.driver_analytics/logs/current/'
 db_lock = threading.Lock()
 r = requests.session()
@@ -382,11 +382,12 @@ def check_camera_status2():
 
 def swap_memory():
     swap = psutil.swap_memory()
-    return f"{swap.percent:.2f}%" if swap else "Error"
+    return round(swap.percent,2)
     
 
 def usage_cpu():
-    return f"{psutil.cpu_percent(interval=1):.2f}%"
+    cpuz=psutil.cpu_percent(interval=1)
+    return round(cpuz,2)
             
 def temp_system():
     command = "cat /sys/class/thermal/thermal_zone0/temp"
@@ -1160,8 +1161,8 @@ def main():
             ["Detected_camera", detected],
             ["Available_camera", available],
             ["Active", imu],
-            ["Swap_usage", swapa], 
-            ["CPU_Usage", cpu], 
+            ["Swap_usage(%)", swapa], 
+            ["CPU_Usage(%)", cpu], 
             ["ETH0_Interface", interface_e],
             ["WLAN_Interface", interface_wlan],
             ["USB-LTE", Lte],
