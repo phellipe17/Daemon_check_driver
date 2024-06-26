@@ -14,14 +14,14 @@ def plot_read_write(file_path):
     df['Hour'] = df['Data'].dt.hour
 
     # Agrupar por hora e somar os valores de leitura e escrita em MB/s
-    hourly_stats = df.groupby('Hour')[['Disk_write_mb_s', 'Disk_read_mb_s']].sum().reset_index()
+    hourly_stats = df.groupby('Hour')[['Disk_write_mb', 'Disk_read_mb']].sum().reset_index()
 
     # Plotar o gráfico
     plt.figure(figsize=(12, 6))
-    plt.plot(hourly_stats['Hour'], hourly_stats['Disk_read_mb_s'], label='Leitura (MB/s)', color='blue')
-    plt.plot(hourly_stats['Hour'], hourly_stats['Disk_write_mb_s'], label='Escrita (MB/s)', color='red')
+    plt.plot(hourly_stats['Hour'], hourly_stats['Disk_read_mb'], label='Leitura (MB)', color='blue')
+    plt.plot(hourly_stats['Hour'], hourly_stats['Disk_write_mb'], label='Escrita (MB)', color='red')
     plt.xlabel('Hora do Dia')
-    plt.ylabel('MB/s')
+    plt.ylabel('MB')
     plt.title('Quantidade de Escrita e Leitura por Hora do Dia')
     plt.legend()
     plt.grid(True)

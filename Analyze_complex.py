@@ -8,7 +8,7 @@ def calculate_hourly_metrics(file_path):
     df = pd.read_csv(file_path)
 
     # Verificar se as colunas necessárias existem
-    required_columns = ['Data', 'Disk_write_mb_s', 'Disk_read_mb_s', 'CPU_Usage(%)', 'Temperature']
+    required_columns = ['Data', 'Disk_write_mb', 'Disk_read_mb', 'CPU_Usage(%)', 'Temperature']
     for col in required_columns:
         if col not in df.columns:
             print("Colunas disponíveis no DataFrame:")
@@ -19,29 +19,32 @@ def calculate_hourly_metrics(file_path):
     df['Data'] = pd.to_datetime(df['Data'], format='%Y/%m/%d %H:%M:%S')
 
     # Converter as colunas para float
-    df['Disk_write_mb_s'] = df['Disk_write_mb_s'].astype(float)
-    df['Disk_read_mb_s'] = df['Disk_read_mb_s'].astype(float)
+    df['Disk_write_mb'] = df['Disk_write_mb'].astype(float)
+    df['Disk_read_mb'] = df['Disk_read_mb'].astype(float)
     df['CPU_Usage(%)'] = df['CPU_Usage(%)'].astype(float)
     df['Temperature'] = df['Temperature'].astype(float)
 
     # Extrair a hora da coluna 'Data'
-    df['Hour'] = df['Data'].dt.hour
+    df['Hour'] = df['Data'].dt.floor('30T')
 
-    # Agrupar por hora e calcular a média dos valores
+    # Agrupar por hora e somar os valores
     hourly_stats = df.groupby('Hour').agg({
-        'Disk_write_mb_s': 'mean',
-        'Disk_read_mb_s': 'mean',
+        'Disk_write_mb': 'sum',
+        'Disk_read_mb': 'sum',
         'CPU_Usage(%)': 'mean',
         'Temperature': 'mean'
     }).reset_index()
+
+    # Formatando a coluna de horas para ser mais legível
+    hourly_stats['Hour'] = hourly_stats['Hour'].dt.strftime('%H:%M')
 
     # Plotar o gráfico combinado
     fig, ax1 = plt.subplots(figsize=(12, 6))
 
     ax1.set_xlabel('Hora do Dia')
-    ax1.set_ylabel('MB/s', color='blue')
-    ax1.plot(hourly_stats['Hour'], hourly_stats['Disk_write_mb_s'], label='Escrita (MB/s)', color='blue')
-    ax1.plot(hourly_stats['Hour'], hourly_stats['Disk_read_mb_s'], label='Leitura (MB/s)', color='cyan')
+    ax1.set_ylabel('MB', color='blue')
+    ax1.plot(hourly_stats['Hour'], hourly_stats['Disk_write_mb'], label='Escrita (MB)', color='blue')
+    ax1.plot(hourly_stats['Hour'], hourly_stats['Disk_read_mb'], label='Leitura (MB)', color='cyan')
     ax1.tick_params(axis='y', labelcolor='blue')
 
     ax2 = ax1.twinx()
