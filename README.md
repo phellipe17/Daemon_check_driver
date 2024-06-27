@@ -1,19 +1,37 @@
 # Daemon_check_driver
-Um daemon em python para checar status do equipamento Driver.
+A ideia de Rodar um script em bash para poder preparar o ambiente Driver Analytics , e criar o serviço em que vai ficar se monitorando e criando arquivos de acordo com o que se desejar.
 
-A ideia é que o daemon rode quando o equipamento iniciar, antes de se iniciar os processos, ou antes de ser totalmente desligado após checar que a ignição estiver desligada.
+Para poder conseguir executar o comando bash em seu terminal é necessário:
+```
+sudo chmod a+x check_health.sh
+```
+e para executar:
+```
+./check_health.sh
+```
 
-Caso queira deixar o daemon rodando é necessário deixar as linhas finais assim:
+rodando o check_health o ambiente da caixinha estará preparado para rodar os arquivos:
+
+> daemon_check_driverV3.py\
+> daemon_check_driver_csv.py
+
+Enquanto o V3 é o mais atualizado que existe uma flag em que é só vocÊ alterar sendo:
+
+> 0 para criar um banco de dados Sqlite e enviar para api /heartbeat\
+> 1 para criar um csv e caso apareça algum erro no dmesg ou erro que impeça um perfeito funcionamento pode enviar para o email desejado.
+
+fica localizado no inicio do código como:
 
 ```
-  if __name__ == '__main__':
-    daemon = Daemonize(app=daemon_name, pid=f'/tmp/{daemon_name}.pid', action=main)
-    daemon.start()
-```
-
-Caos queria apensar rodar como um código em python para fazer um diagnóstico imediado é só modificar as ultimas linhas para:
+flag = 1 # 0 create database and sent to api, 1 to create a csv file
 
 ```
-if __name__ == '__main__':
-  main()
+E para rodar os scripts se recomendar usar sudo e python3, pois contém as ferramentas necessárias para rodar o script sem problema na mão:
+
+```
+sudo python3 daemon_check_driverV3.py
+```
+ou
+```
+sudo python3 daemon_check_driver_csv.py
 ```
