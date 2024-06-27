@@ -93,16 +93,31 @@ def check_voltage():
     except:
         return None
 
-def get_disk_io():
-    disk_io = psutil.disk_io_counters(nowrap=True)
-    return {
-        'read_count': disk_io.read_count,
-        'write_count': disk_io.write_count,
-        'read_bytes': disk_io.read_bytes,
-        'write_bytes': disk_io.write_bytes,
-        'read_time': disk_io.read_time,
-        'write_time': disk_io.write_time
-    }
+def read_diskstats():
+    diskstats_path = '/proc/diskstats'
+    with open(diskstats_path, 'r') as f:
+        lines = f.readlines()
+
+    for line in lines:
+        parts = line.split()
+        if 'mmcblk0' in parts or 'sdb' in parts:  # Substitute 'mmcblk0' or 'sda' with your disk identifier
+            read_count = int(parts[3])
+            write_count = int(parts[7])
+            read_sectors = int(parts[5])
+            write_sectors = int(parts[9])
+            read_time = int(parts[6])
+            write_time = int(parts[10])
+            sector_size = 512  # Typically 512 bytes per sector
+            
+            read_bytes = read_sectors * sector_size
+            write_bytes = write_sectors * sector_size
+            
+            read_mb = read_bytes / (1024 * 1024)
+            write_mb = write_bytes / (1024 * 1024)
+            
+            read_mb=round(read_mb, 2)
+            write_mb=round(write_mb, 2)
+    return read_mb, write_mb, read_count, write_count, read_time, write_time
 #--------------------------------------------------------------------------------------------
 
 # check_internet(): This function checks for internet connectivity by attempting to create a connection to 
@@ -972,7 +987,7 @@ def main():
     macmac=get_mac() # Verifica o mac adress
     network_usage = get_network_usage()
     voltage = check_voltage()
-    disk_io = get_disk_io()
+    read_mb, write_mb, read_count, write_count, read_time, write_time = read_diskstats()
     uptime = get_system_uptime()
     #clear_log_file(log_file_path)  # Apaga o conteúdo do arquivo de log ao iniciar
     # current_time = time.strftime('%Y-%m-%d %H:%M:%S')
@@ -1035,12 +1050,12 @@ def main():
         ["Bytes_Sent", network_usage["bytes_sent"]],
         ["Bytes_Received", network_usage["bytes_recv"]],
         ["Voltage", voltage],
-        ["Disk_Read_Count", disk_io['read_count']],
-        ["Disk_Write_Count", disk_io['write_count']],
-        ["Disk_Read_Bytes", disk_io['read_bytes']],
-        ["Disk_Write_Bytes", disk_io['write_bytes']],
-        ["Disk_Read_Time (ms)", disk_io['read_time']],
-        ["Disk_Write_Time (ms)", disk_io['write_time']],
+        ["Disk_Read_Count", read_count],
+        ["Disk_Write_Count", write_count],
+        ["Disk_Read_Bytes_mb", read_mb],
+        ["Disk_Write_Bytes_mb", write_mb],
+        ["Disk_Read_Time (ms)", read_time],
+        ["Disk_Write_Time (ms)", write_time],
         ["Uptime (ms)", uptime]
     ]
     with open(filename, mode='a', newline='') as file:  # Use mode='a' para adicionar ao arquivo existente
