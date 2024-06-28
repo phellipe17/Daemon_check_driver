@@ -391,9 +391,10 @@ def check_camera_status():
 
 def check_camera_status2():
     try:
-       subprocess.run(["raspistill", "-o", "/tmp/camera_test.jpg"], check=True,stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+       subprocess.run(["raspistill", "-o", "/tmp/camera_test.jpg","-w", "640", "-h", "480", "-q", "1", "-n"], check=True,stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
        available = " 1 "
     except subprocess.CalledProcessError as e:
+       print("deu erro")
        available = " 0 "
     
     command = "vcgencmd get_camera"

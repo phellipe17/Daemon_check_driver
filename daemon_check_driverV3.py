@@ -366,7 +366,7 @@ def check_camera_status():
 
 def check_camera_status2():
     try:
-       subprocess.run(["raspistill", "-o", "/tmp/camera_test.jpg", "-w", "640", "-h", "480"],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+       subprocess.run(["raspistill", "-o", "/tmp/camera_test.jpg","-w", "640", "-h", "480", "-q", "1", "-n"],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
        available = "1"
        print("Foi possível tirar a foto, a camera esta disponivel")
     except subprocess.CalledProcessError:

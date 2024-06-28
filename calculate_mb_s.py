@@ -11,19 +11,19 @@ def calculate_io_in_mb(df):
 
     for i in range(1, len(df)):
         # Calcular a diferença entre linhas consecutivas para escrita e leitura
-        write_bytes_diff = df.loc[i, 'Disk_Write_Bytes'] - df.loc[i - 1, 'Disk_Write_Bytes']
-        read_bytes_diff = df.loc[i, 'Disk_Read_Bytes'] - df.loc[i - 1, 'Disk_Read_Bytes']
+        write_bytes_mb = df.loc[i, 'Disk_Write_Bytes_mb'] - df.loc[i - 1, 'Disk_Write_Bytes_mb']
+        read_bytes_mb = df.loc[i, 'Disk_Read_Bytes_mb'] - df.loc[i - 1, 'Disk_Read_Bytes_mb']
         
         # Converter bytes para megabytes
-        write_mb_diff = write_bytes_diff / (1024 * 1024)
-        read_mb_diff = read_bytes_diff / (1024 * 1024)
+        write_mb_mb = write_bytes_mb 
+        read_mb_mb = read_bytes_mb
         
         # Calcular a diferença de tempo em segundos
         time_diff = (df.loc[i, 'Uptime (ms)'] - df.loc[i - 1, 'Uptime (ms)']) / 1000
         
         # Atualizar as novas colunas
-        df.loc[i, 'Disk_write_mb'] = write_mb_diff if write_mb_diff > 0 else 0
-        df.loc[i, 'Disk_read_mb'] = read_mb_diff if read_mb_diff > 0 else 0
+        df.loc[i, 'Disk_write_mb'] = write_mb_mb if write_mb_mb > 0 else 0
+        df.loc[i, 'Disk_read_mb'] = read_mb_mb if read_mb_mb > 0 else 0
         df.loc[i, 'Time_diff'] = time_diff if time_diff > 0 else 0
 
     return df
@@ -37,7 +37,7 @@ def process_file(file_path):
 
     # Salvar o resultado em um novo arquivo CSV
     output_file_path = file_path.replace('.csv', '_updated.csv')
-    df.to_csv(output_file_path, index=False)
+    df.to_csv(output_file_path, index=False, float_format='%.2f')
 
     print(f"Arquivo salvo em: {output_file_path}")
 

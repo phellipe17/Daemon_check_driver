@@ -43,6 +43,7 @@ def calculate_hourly_metrics(file_path):
 
     ax1.set_xlabel('Hora do Dia')
     ax1.set_ylabel('MB', color='blue')
+    ax1.set_ylim(0, 200)
     ax1.plot(hourly_stats['Hour'], hourly_stats['Disk_write_mb'], label='Escrita (MB)', color='blue')
     ax1.plot(hourly_stats['Hour'], hourly_stats['Disk_read_mb'], label='Leitura (MB)', color='cyan')
     ax1.tick_params(axis='y', labelcolor='blue')
