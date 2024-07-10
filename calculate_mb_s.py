@@ -19,7 +19,7 @@ def calculate_io_in_mb(df):
         read_mb_mb = read_bytes_mb
         
         # Calcular a diferença de tempo em segundos
-        time_diff = (df.loc[i, 'Uptime (ms)'] - df.loc[i - 1, 'Uptime (ms)']) / 1000
+        time_diff = (df.loc[i, 'Uptime(sec)'] - df.loc[i - 1, 'Uptime(sec)'])
         
         # Atualizar as novas colunas
         df.loc[i, 'Disk_write_mb'] = write_mb_mb if write_mb_mb > 0 else 0

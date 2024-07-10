@@ -72,18 +72,18 @@ def get_network_usage():
 
 def get_system_uptime():
     uptime_seconds = os.popen('awk \'{print $1}\' /proc/uptime').read().strip()
-    uptime_milliseconds = int(float(uptime_seconds) * 1000)
-    return uptime_milliseconds 
+    uptime_seconds = float(uptime_seconds)
+    return round(uptime_seconds, 2)
 
-def get_uptime_ms():
-    try:
-        with open('/proc/uptime', 'r') as f:
-            uptime_seconds = float(f.readline().split()[0])
-            uptime_milliseconds = int(uptime_seconds * 1000)
-            return uptime_milliseconds
-    except Exception as e:
-        print(f"Error reading uptime: {e}")
-        return None
+# def get_uptime_ms():
+#     try:
+#         with open('/proc/uptime', 'r') as f:
+#             uptime_seconds = float(f.readline().split()[0])
+#             uptime_milliseconds = int(uptime_seconds * 1000)
+#             return uptime_milliseconds
+#     except Exception as e:
+#         print(f"Error reading uptime: {e}")
+#         return None
 
 def check_voltage():
     try:
@@ -514,11 +514,11 @@ def postChekingHealth(urlbase, url, idVehicle, token):
     return ret_status_code, response_json
 
 def ler_contador():
-    with open("/home/pi/.monitor/counter.txt", "r") as arquivo:
+    with open("/home/pi/.driver_analytics/health/counter.txt", "r") as arquivo:
         return int(arquivo.read().strip())
 
 def escrever_contador(contador):
-    with open("/home/pi/.monitor/counter.txt", "w") as arquivo:
+    with open("/home/pi/.driver_analytics/health/counter.txt", "w") as arquivo:
         arquivo.write(str(contador))
     
 def incrementar_contador_e_usar():
@@ -528,8 +528,8 @@ def incrementar_contador_e_usar():
     escrever_contador(contador)
 
 def inicializar_contador():
-    if not os.path.exists("/home/pi/.monitor/counter.txt"):
-        with open("/home/pi/.monitor/counter.txt", "w") as arquivo:
+    if not os.path.exists("/home/pi/.driver_analytics/health/counter.txt"):
+        with open("/home/pi/.driver_analytics/health/counter.txt", "w") as arquivo:
             arquivo.write("0")
             return 0
     else:
@@ -558,9 +558,18 @@ def checking_mode():
     return out
 
 def current_time_pi():
-    command="date +'%Y/%m/%d %H:%M:%S'"
+    command="date +'%Y/%m/%d'"
     output,error = run_bash_command(command)
     return output
+
+def current_timestamp():
+    command="uptime"
+    output,error = run_bash_command(command)
+    uptime_info = output.split("up")[0].strip()
+    current_time = uptime_info.split()[-1]
+        
+    return current_time
+    
 
 def check_dmesg_for_errors():
     # Execute the dmesg command to get the kernel log
@@ -970,7 +979,8 @@ def main():
         Ard = None
     
     # Verify general health
-    current_time2=current_time_pi()#Pega a hora atual
+    date=current_time_pi()#Pega a hora atual
+    timestamp= current_timestamp()#Pega o timestamp e tempo de equipamento ligado em min
     ig = checking_ignition()#Verifica se a ignição esta ligada
     modee=checking_mode()#Identifica o modo de operação
     total_size,free_size,size = get_machine_storage()#Verifica info do disco
@@ -1022,7 +1032,9 @@ def main():
     
     data = [
         ["counter", counter_id],
-        ["Data", current_time2.strip('\n')],
+        ["Data", date],
+        ["timestamp", timestamp],
+        ["Uptime(sec)", uptime],
         ["ignition", ig],
         ["mode_aways_on", modee],
         ["connection_internet", conncetion_chk],
@@ -1056,8 +1068,7 @@ def main():
         ["Disk_Read_Bytes_mb", read_mb],
         ["Disk_Write_Bytes_mb", write_mb],
         ["Disk_Read_Time (ms)", read_time],
-        ["Disk_Write_Time (ms)", write_time],
-        ["Uptime (ms)", uptime]
+        ["Disk_Write_Time (ms)", write_time]
     ]
     with open(filename, mode='a', newline='') as file:  # Use mode='a' para adicionar ao arquivo existente
         # Verificar se o arquivo está vazio para escrever o cabeçalho

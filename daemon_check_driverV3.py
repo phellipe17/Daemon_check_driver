@@ -417,10 +417,17 @@ def checking_ignition():
     return out
 
 def current_time_pi():
-    command="date +'%Y/%m/%d %H:%M:%S'"
+    command="date +'%Y/%m/%d'"
     output,error = run_bash_command(command)
-
     return output
+
+def current_timestamp():
+    command="uptime"
+    output,error = run_bash_command(command)
+    uptime_info = output.split("up")[0].strip()
+    current_time = uptime_info.split()[-1]
+        
+    return current_time
 
 def verificar_e_criar_tabela(path):
     conn = create_connection(path)
@@ -429,6 +436,8 @@ def verificar_e_criar_tabela(path):
         CREATE TABLE IF NOT EXISTS health_device (
             id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
             Data TEXT,
+            timestamp TEXT,
+            uptime TEXT,
             ignition TEXT,
             mode_aways_on TEXT,
             connection_internet TEXT,
@@ -462,8 +471,7 @@ def verificar_e_criar_tabela(path):
             Disk_Read_Bytes TEXT,
             Disk_Write_Bytes TEXT,
             Disk_Read_Time_ms TEXT,
-            Disk_Write_Time_ms TEXT,
-            Uptime_ms TEXT
+            Disk_Write_Time_ms TEXT
         )''')
     conn.close()
     
@@ -473,12 +481,12 @@ def adicionar_dados(data,path):
         conn = create_connection(path)
         cursor=conn.cursor() 
         cursor.execute(''' INSERT INTO health_device (
-            Data, ignition, mode_aways_on, connection_internet, Modem_IP, Signal_modem, Status_modem, connection_extra, 
+            Data,timestamp,uptime, ignition, mode_aways_on, connection_internet, Modem_IP, Signal_modem, Status_modem, connection_extra, 
             connection_INT_EXT, Expanded, Free_disk, Size_disk, GPS_Fix, Signal_Strength, Avaible_Satellites, Detected_camera, 
             Available_camera, Active_imu, Swap_usage, CPU_Usage, ETH0_Interface, WLAN_Interface, USB_LTE, USB_ARD, Temperature, 
             Mac_Address, Bytes_Sent, Bytes_Received, Voltage, Disk_Read_Count, Disk_Write_Count, Disk_Read_Bytes, 
-            Disk_Write_Bytes, Disk_Read_Time_ms, Disk_Write_Time_ms, Uptime_ms) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''', data)
+            Disk_Write_Bytes, Disk_Read_Time_ms, Disk_Write_Time_ms) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''', data)
         conn.commit()
         conn.close()
 
@@ -726,41 +734,42 @@ def transformar_em_json(dados):
         json_linha = {
             "id": linha[0],
             "data": linha[1],
-            "ignition": linha[2],
-            "mode_aways_on": linha[3],
-            "connection_internet": linha[4],
-            "Modem_IP": linha[5],
-            "Signal_modem": linha[6],
-            "Status_modem": linha[7],
-            "connection_extra": linha[8],
-            "connection_int_ext": linha[9],
-            "Expanded": linha[10],
-            "Free_disk": linha[11],
-            "Size_disk": linha[12],
-            "GPS_Fix": linha[13],
-            "Signal_Strength": linha[14],
-            "Avaible_Satellites": linha[15],
-            "Detected_camera": linha[16],
-            "Available_camera": linha[17],
-            "Active_imu": linha[18],
-            "Swap_usage": linha[19],
-            "CPU_Usage": linha[20],
-            "ETH0_Interface": linha[21],
-            "WLAN_Interface": linha[22],
-            "USB_LTE": linha[23],
-            "USB_ARD": linha[24],
-            "Temperature": linha[25],
-            "Mac_Address": linha[26],
-            "Bytes_Sent": linha[27],
-            "Bytes_Received": linha[28],
-            "Voltage": linha[29],
-            "Disk_Read_Count": linha[30],
-            "Disk_Write_Count": linha[31],
-            "Disk_Read_Bytes": linha[32],
-            "Disk_Write_Bytes": linha[33],
-            "Disk_Read_Time_ms": linha[34],
-            "Disk_Write_Time_ms": linha[35],
-            "Uptime_ms": linha[36]
+            "timestamp": linha[2],
+            "uptime(sec)": linha[3],
+            "ignition": linha[4],
+            "mode_aways_on": linha[5],
+            "connection_internet": linha[6],
+            "Modem_IP": linha[7],
+            "Signal_modem": linha[8],
+            "Status_modem": linha[9],
+            "connection_extra": linha[10],
+            "connection_int_ext": linha[11],
+            "Expanded": linha[12],
+            "Free_disk": linha[13],
+            "Size_disk": linha[14],
+            "GPS_Fix": linha[15],
+            "Signal_Strength": linha[16],
+            "Avaible_Satellites": linha[17],
+            "Detected_camera": linha[18],
+            "Available_camera": linha[19],
+            "Active_imu": linha[20],
+            "Swap_usage": linha[21],
+            "CPU_Usage": linha[22],
+            "ETH0_Interface": linha[23],
+            "WLAN_Interface": linha[24],
+            "USB_LTE": linha[25],
+            "USB_ARD": linha[26],
+            "Temperature": linha[27],
+            "Mac_Address": linha[28],
+            "Bytes_Sent": linha[29],
+            "Bytes_Received": linha[30],
+            "Voltage": linha[31],
+            "Disk_Read_Count": linha[32],
+            "Disk_Write_Count": linha[33],
+            "Disk_Read_Bytes": linha[34],
+            "Disk_Write_Bytes": linha[35],
+            "Disk_Read_Time_ms": linha[36],
+            "Disk_Write_Time_ms": linha[37]
         }
         resultado.append(json_linha)
     return resultado
@@ -879,8 +888,8 @@ def check_voltage():
 
 def get_system_uptime():
     uptime_seconds = os.popen('awk \'{print $1}\' /proc/uptime').read().strip()
-    uptime_milliseconds = int(float(uptime_seconds) * 1000)
-    return uptime_milliseconds
+    uptime_seconds = float(uptime_seconds)
+    return round(uptime_seconds, 2)
 
 def check_dmesg_for_errors():
     vet2 = []
@@ -1028,7 +1037,8 @@ def main():
         var.append("RFID não detectado\n")
     
     ig = checking_ignition() # checa ignição
-    current_time = current_time_pi() # busca data em que foi rodado o script
+    date = current_time_pi() # busca data em que foi rodado o script
+    timestamp=current_timestamp() # busca timestamp
     total_size,free_size,size = get_machine_storage() #busca informações de armazenamento
     read_mb, write_mb, read_count, write_count, read_time, write_time = read_diskstats()        
     conncetion_chk = check_internet() # verifica se tem conexão com a internet
@@ -1109,7 +1119,9 @@ def main():
     # Verify flag to create a database or create a csv file
     if flag == 0:
         data_values=(
-            current_time.strip('\n'),
+            date,
+            timestamp,
+            uptime,
             ig, 
             modee,
             conncetion_chk,
@@ -1143,8 +1155,7 @@ def main():
             read_mb,
             write_mb,
             read_time,
-            write_time,
-            uptime
+            write_time
         ) 
 
         if AS1_CAMERA_TYPE == 0:
@@ -1158,7 +1169,9 @@ def main():
         answer = ""
         data = [
             ["counter", counter_id],
-            ["Data", current_time.strip('\n')],
+            ["Data", date],
+            ["timestamp", timestamp],
+            ["Uptime(sec)", uptime],
             ["ignition", ig],
             ["mode_aways_on", modee],
             ["connection_internet", conncetion_chk],
@@ -1192,8 +1205,7 @@ def main():
             ["Disk_Read_Bytes_mb", read_mb],
             ["Disk_Write_Bytes_mb", write_mb],
             ["Disk_Read_Time (ms)", read_time],
-            ["Disk_Write_Time (ms)", write_time],
-            ["Uptime (ms)", uptime]
+            ["Disk_Write_Time (ms)", write_time]
         ]
         with open(filename, mode='a', newline='') as file:  # Use mode='a' para adicionar ao arquivo existente
             # Verificar se o arquivo está vazio para escrever o cabeçalho
