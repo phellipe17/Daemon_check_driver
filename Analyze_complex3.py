@@ -1,0 +1,93 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import argparse
+import os
+from matplotlib.ticker import MultipleLocator, AutoMinorLocator
+
+def plot_disk_cpu_temp(file_path, interval_minutes):
+    # Carregar o arquivo CSV
+    df = pd.read_csv(file_path)
+
+    # Calcular o uptime acumulado usando a coluna Time_diff
+    df['Accumulated_uptime'] = df['Time_diff'].cumsum()
+
+    # Convertendo a coluna de timestamp para datetime
+    df['timestamp'] = pd.to_datetime(df['timestamp'])
+
+    # Adicionando a coluna de horários correspondentes
+    df['Time'] = df['Accumulated_uptime']
+    df['Time_label'] = df['timestamp'].dt.strftime('%H:%M:%S')
+
+    # Agrupar por intervalos de tempo especificados e somar os valores de leitura e escrita em MB, e calcular a média da temperatura e uso da CPU
+    df_grouped = df.groupby('Time').agg({
+        'Disk_write_mb': 'sum',
+        'Disk_read_mb': 'sum',
+        'Temperature': 'mean',
+        'CPU_Usage(%)': 'mean'
+    }).reset_index()
+
+    # Adicionando os labels de horários correspondentes ao dataframe agrupado
+    df_grouped['Time_label'] = df_grouped['Time'].map(df.set_index('Time')['Time_label'])
+
+    # Plotar os gráficos
+    fig, ax1 = plt.subplots(figsize=(16,9))  # tamanho da imagem
+
+    color = 'tab:red'
+    ax1.set_xlabel('Uptime (seconds)')
+    ax1.set_ylabel('Disk Write/Read MB', color=color)
+    ax1.set_ylim(0, 100)
+    ax1.plot(df_grouped['Time'], df_grouped['Disk_write_mb'], color='tab:red', label='Disk Write MB')
+    ax1.plot(df_grouped['Time'], df_grouped['Disk_read_mb'], color='tab:blue', label='Disk Read MB')
+    ax1.tick_params(axis='y', labelcolor=color)
+
+    # Configurando os ticks e labels do eixo x
+    ax1.xaxis.set_major_locator(MultipleLocator(1000))  # limitadores do eixo x
+    ax1.xaxis.set_major_formatter('{x:.0f}')
+    ax1.xaxis.set_minor_locator(MultipleLocator(500))  # limitadores de intervalos menores
+    ax1.legend(loc='upper left')
+
+    ax2 = ax1.twinx()
+    color = 'tab:green'
+    ax2.set_ylabel('Temperature (°C)', color=color)
+    ax2.plot(df_grouped['Time'], df_grouped['Temperature'], color=color, label='Temperature (°C)')
+    ax2.tick_params(axis='y', labelcolor=color)
+    ax2.legend(loc='lower left')
+
+    ax3 = ax1.twinx()
+    color = 'tab:orange'
+    ax3.set_ylabel('CPU Usage (%)', color=color)
+    ax3.plot(df_grouped['Time'], df_grouped['CPU_Usage(%)'], color=color, label='CPU Usage (%)')
+    ax3.tick_params(axis='y', labelcolor=color)
+    ax3.spines['right'].set_position(('outward', 60))
+    ax3.legend(loc='lower right')
+
+    # Adicionar linhas verticais tracejadas para reinicializações
+    reboots = df[df['Time_diff'] == 0]
+    for i, row in reboots.iterrows():
+        plt.axvline(x=row['Accumulated_uptime'], color='k', linestyle='--')
+
+    # Adicionar um segundo eixo x para os labels de tempo
+    ax4 = ax1.twiny()
+    ax4.set_xlim(ax1.get_xlim())
+    ax4.set_xticks(df_grouped['Time'][::max(1, len(df_grouped['Time']) // 10)])
+    ax4.set_xticklabels(df_grouped['Time_label'][::max(1, len(df_grouped['Time_label']) // 10)], rotation=45, ha='right')
+    ax4.set_xlabel('Time')
+
+    plt.title('Disk IO, Temperature and CPU Usage Over Time')
+    fig.tight_layout()
+
+    # Salvar o gráfico como imagem
+    directory = os.path.dirname(file_path)
+    output_file = os.path.join(directory, os.path.basename(file_path).replace('.csv', '_combined_metrics_per_hour.png'))
+    plt.savefig(output_file, dpi=300)
+
+    # Mostrar o gráfico
+    plt.show()
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Plot disk IO, temperature and CPU usage over time.')
+    parser.add_argument('file_path', type=str, help='Path to the CSV file')
+    parser.add_argument('--interval', type=int, default=30, help='Interval in minutes for aggregating data')
+    args = parser.parse_args()
+
+    plot_disk_cpu_temp(args.file_path, args.interval)
