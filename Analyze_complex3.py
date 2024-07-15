@@ -2,23 +2,19 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import argparse
 import os
-from matplotlib.ticker import MultipleLocator, AutoMinorLocator
+from matplotlib.ticker import (MultipleLocator, AutoMinorLocator, FuncFormatter)
+
 
 def plot_disk_cpu_temp(file_path, interval_minutes):
     # Carregar o arquivo CSV
     df = pd.read_csv(file_path)
 
-    # Calcular o uptime acumulado usando a coluna Time_diff
-    df['Accumulated_uptime'] = df['Time_diff'].cumsum()
+    # df['TimeData'] = df['Data'].astype(str) + ' ' + df['timestamp'].astype(str)
+    df['TimeData'] = df['timestamp'].astype(str)
 
-    # Convertendo a coluna de timestamp para datetime
-    df['timestamp'] = pd.to_datetime(df['timestamp'])
-
-    # Adicionando a coluna de horários correspondentes
-    df['Time'] = df['Accumulated_uptime']
-    df['Time_label'] = df['timestamp'].dt.strftime('%H:%M:%S')
-
-    # Agrupar por intervalos de tempo especificados e somar os valores de leitura e escrita em MB, e calcular a média da temperatura e uso da CPU
+    # construindo um counter de zero até o tamanho das leituras do arquivo
+    df['Time'] = range(1, df['Time_diff'].size + 1)
+        
     df_grouped = df.groupby('Time').agg({
         'Disk_write_mb': 'sum',
         'Disk_read_mb': 'sum',
@@ -26,24 +22,30 @@ def plot_disk_cpu_temp(file_path, interval_minutes):
         'CPU_Usage(%)': 'mean'
     }).reset_index()
 
-    # Adicionando os labels de horários correspondentes ao dataframe agrupado
-    df_grouped['Time_label'] = df_grouped['Time'].map(df.set_index('Time')['Time_label'])
-
     # Plotar os gráficos
-    fig, ax1 = plt.subplots(figsize=(16,9))  # tamanho da imagem
+    fig, ax1 = plt.subplots(figsize=(16,9))#tamanho da imagem
+
+    # Função formatadora para os rótulos do eixo X, substituindo apenas a cada 100 valores
+    def format_func(value, tick_number):
+        index = int(value)
+        if 0 <= index < len(df) and index % 100 == 0:  # Substituir rótulos a cada 100 valores
+            return df['TimeData'].iloc[index]
+        return ''
+
 
     color = 'tab:red'
-    ax1.set_xlabel('Uptime (seconds)')
+    ax1.set_xlabel('Time')
     ax1.set_ylabel('Disk Write/Read MB', color=color)
     ax1.set_ylim(0, 100)
     ax1.plot(df_grouped['Time'], df_grouped['Disk_write_mb'], color='tab:red', label='Disk Write MB')
     ax1.plot(df_grouped['Time'], df_grouped['Disk_read_mb'], color='tab:blue', label='Disk Read MB')
     ax1.tick_params(axis='y', labelcolor=color)
+    
 
-    # Configurando os ticks e labels do eixo x
-    ax1.xaxis.set_major_locator(MultipleLocator(1000))  # limitadores do eixo x
-    ax1.xaxis.set_major_formatter('{x:.0f}')
-    ax1.xaxis.set_minor_locator(MultipleLocator(500))  # limitadores de intervalos menores
+    ax1.xaxis.set_major_locator(MultipleLocator(100))#limitadores do eixo x
+    ax1.xaxis.set_minor_locator(MultipleLocator(10))#limitadores de intervalos menores
+    ax1.xaxis.set_major_formatter(FuncFormatter(format_func))
+
     ax1.legend(loc='upper left')
 
     ax2 = ax1.twinx()
@@ -64,22 +66,19 @@ def plot_disk_cpu_temp(file_path, interval_minutes):
     # Adicionar linhas verticais tracejadas para reinicializações
     reboots = df[df['Time_diff'] == 0]
     for i, row in reboots.iterrows():
-        plt.axvline(x=row['Accumulated_uptime'], color='k', linestyle='--')
-
-    # Adicionar um segundo eixo x para os labels de tempo
-    ax4 = ax1.twiny()
-    ax4.set_xlim(ax1.get_xlim())
-    ax4.set_xticks(df_grouped['Time'][::max(1, len(df_grouped['Time']) // 10)])
-    ax4.set_xticklabels(df_grouped['Time_label'][::max(1, len(df_grouped['Time_label']) // 10)], rotation=45, ha='right')
-    ax4.set_xlabel('Time')
+        plt.axvline(x=row['Time'], color='k', linestyle='--', label='Reboot')
 
     plt.title('Disk IO, Temperature and CPU Usage Over Time')
     fig.tight_layout()
 
+    # Rotacionar rótulos do eixo X em 45 graus
+    plt.xticks(rotation=45)
+    
+    
     # Salvar o gráfico como imagem
     directory = os.path.dirname(file_path)
     output_file = os.path.join(directory, os.path.basename(file_path).replace('.csv', '_combined_metrics_per_hour.png'))
-    plt.savefig(output_file, dpi=300)
+    plt.savefig(output_file,dpi=300)
 
     # Mostrar o gráfico
     plt.show()
