@@ -40,11 +40,13 @@ def plot_disk_cpu_temp(file_path, interval_minutes):
     ax1.plot(df_grouped['Time'], df_grouped['Disk_write_mb'], color='tab:red', label='Disk Write MB')
     ax1.plot(df_grouped['Time'], df_grouped['Disk_read_mb'], color='tab:blue', label='Disk Read MB')
     ax1.tick_params(axis='y', labelcolor=color)
-    
+    # Rotacionar rótulos do eixo X em 45 graus
+    ax1.set_xticklabels(df_grouped['Time'], rotation=45, ha='right') 
 
     ax1.xaxis.set_major_locator(MultipleLocator(100))#limitadores do eixo x
     ax1.xaxis.set_minor_locator(MultipleLocator(10))#limitadores de intervalos menores
     ax1.xaxis.set_major_formatter(FuncFormatter(format_func))
+    
 
     ax1.legend(loc='upper left')
 
@@ -71,8 +73,6 @@ def plot_disk_cpu_temp(file_path, interval_minutes):
     plt.title('Disk IO, Temperature and CPU Usage Over Time')
     fig.tight_layout()
 
-    # Rotacionar rótulos do eixo X em 45 graus
-    plt.xticks(rotation=45)
     
     
     # Salvar o gráfico como imagem
