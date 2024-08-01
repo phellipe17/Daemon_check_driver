@@ -1089,7 +1089,8 @@ def main():
     # Verify Arduino
     if AS1_CAMERA_TYPE == 0:
         Ard = check_ttyARD()
-        var.append("Arduino não detectado\n")
+        if int(Ard) == 0:
+            var.append("Arduino não detectado\n")
     else:
         Ard = None
     
