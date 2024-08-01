@@ -36,7 +36,7 @@ def plot_disk_cpu_temp(file_path, interval_minutes):
     color = 'tab:red'
     ax1.set_xlabel('Time')
     ax1.set_ylabel('Disk Write/Read MB', color=color)
-    ax1.set_ylim(0, 100)
+    ax1.set_ylim(0, 200)
     ax1.plot(df_grouped['Time'], df_grouped['Disk_write_mb'], color='tab:red', label='Disk Write MB')
     ax1.plot(df_grouped['Time'], df_grouped['Disk_read_mb'], color='tab:blue', label='Disk Read MB')
     ax1.tick_params(axis='y', labelcolor=color)
