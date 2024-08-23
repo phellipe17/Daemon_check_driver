@@ -11,8 +11,8 @@ from threading import Thread
 import psutil
 import csv
 import smtplib
+from datetime import datetime, timedelta
 
-from datetime import datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
@@ -273,65 +273,77 @@ def check_ttyLTE():
 def check_ttyARD():
     return "1" if os.path.exists('/dev/ttyARD') else "0"
 
+def check_ttyMDN():
+    return "1" if os.path.exists('/dev/ttyMDN') else "0"
+
 def send_serial_command(command):
-    try:
-        ser = serial.Serial("/dev/ttyMDN", 115200)
-        
-        # Send the provided command
-        ser.write(command)
+    if check_ttyMDN() == "1":
+        ser = None
+        try:
+            ser = serial.Serial("/dev/ttyMDN", 115200, timeout=1)  # Set a 1 second read timeout
 
-        # Read lines with a timeout
-        counter = 0
-        response = ""
+            # Send the provided command
+            ser.write(command)
 
-        while counter < 10:  # 10 seconds timeout (adjust as needed)
-            bs = ser.readline()
-            response += bs.decode()
+            # Read lines with a timeout
+            response = ""
+            for _ in range(10):  # Try for up to 10 seconds
+                bs = ser.readline()
+                response += bs.decode()
 
-            if "Error" in response:
-                return "Error"
-            elif "OK" in response:
-                return response
-            
-            counter +=1
+                if "Error" in response:
+                    return "Error"
+                elif "OK" in response:
+                    return response
 
-        print("Timeout reached. Exiting.")
-        return "Timeout"
-    except serial.SerialException as e:
-        print(f"Error: {e}")
-        return "Serial Exception"
-    finally:
-        # Always close the serial connection
-        if ser.isOpen():
-            ser.close()
-
-def modem_signal():
-    text_signal =b'AT+CSQ\r'
-    result = send_serial_command(text_signal)
-    result2 = result.split("\n")[1].split(":")[1].strip()	    
-    if len(result2) > 0:
-        signal_strength=float(result2.replace(',','.'))
-        if (signal_strength == 99):
-            return ' 0 '
-        elif (signal_strength >= 31):
-            return ' 1 '
-        elif (signal_strength < 31 and signal_strength >= 2):
-            return ' 1 '
-        elif (signal_strength < 2 and  signal_strength >= 0):
-            return ' 0 '
+            print("Timeout reached. Exiting.")
+            return "Error"
+        except serial.SerialException as e:
+            print(f"Error: {e}")
+            return "Error"
+        finally:
+            # Always close the serial connection
+            if ser and ser.isOpen():
+                ser.close()
     else:
-        return ' 0 '
+        return "Error"
+    
+def modem_signal():
+    text_signal = b'AT+CSQ\r'
+    result = send_serial_command(text_signal)
+    if result != "Error":
+        try:
+            signal_strength = float(result.split("\n")[1].split(":")[1].strip().replace(',', '.'))
+            if signal_strength == 99:
+                return '0'
+            elif signal_strength >= 2:
+                return '1'
+            else:
+                return '0'
+        except (IndexError, ValueError) as e:
+            print(f"Parsing error: {e}")
+            return '0'
+    else:
+        return '0'
 
 def modem_status():
-    text_status =b'AT+CPAS\r'
+    text_status = b'AT+CPAS\r'
     result = send_serial_command(text_status)
-    result2 = result.split(":")[1].strip()
-    if "ok" in result2.lower():
-        return ' 1 '
-    elif "error" in result2.lower():
-        return ' 0 '
+    if result != "Error":    
+        try:
+            result2 = result.split(":")[1].strip().lower()
+            if "ok" in result2:
+                return '1'
+            elif "error" in result2:
+                return '0'
+            else:
+                return '0'
+        except IndexError as e:
+            print(f"Parsing error: {e}")
+            return '0'
     else:
-        return "Undefined"
+        return '0'
+
     
 # def get_ccid():
 #     command = b'AT+QCCID\r'
@@ -342,20 +354,88 @@ def modem_status():
 #     else:
 #         return color(' Sim not inserted', 'red')
 
-def check_camera_status():
-    command_frame="tail -n10 /home/pi/.driver_analytics/logs/current/camera.log"
-    result, error=run_bash_command(command_frame)
+def verificar_horario_camera():
+    answer=0
+    caminho_arquivo = "/home/pi/.driver_analytics/logs/current/camera.log"
+    try:
+        with open(caminho_arquivo, "r") as file:
+            for linha in file:
+                if "bridge_handler: Data atualizada" in linha:
+                    answer=1
+    except FileNotFoundError:
+        # print(f"O arquivo {caminho_arquivo} não foi encontrado.")
+        answer=0
+    except Exception as e:
+        # print(f"Um erro ocorreu ao tentar ler o arquivo: {str(e)}")
+        answer=0
+    return answer
+
+def find_last_camera_alive_line(log_file_path):
+    last_camera_alive_line,error = run_bash_command(log_file_path)
+    return last_camera_alive_line
+
+# def parse_log_line(line):
+#     # Example line: [20/08/2024 13:57:50] main: Camera is alive: 20/08/2024 14:10:00 {as1_camera_main.cpp:1147}
+#     parts = line.split("Camera is alive uptime:")
+#     if len(parts) > 1:
+#         timestamp_str = parts[1].strip().split(" ")[0] + " " + parts[1].strip().split(" ")[1]
+#         timestamp = datetime.strptime(timestamp_str, "%d/%m/%Y %H:%M:%S")
+#         return timestamp
+#     return None
+
+# def check_camera_alive(log_path):
+#     with open(log_path, 'r') as file:
+#         lines = file.readlines()
+
+#     last_check_time = None
+
+#     for line in reversed(lines):
+#         if "Camera is alive" in line:
+#             last_check_time = parse_log_line(line)
+#             break
+
+#     if last_check_time is None:
+#         print("Warning: No 'Camera is alive' log found.")
+#         return False
+
+#     now = datetime.now()
+#     if (now - last_check_time).total_seconds() > 90:
+#         print(f"Warning: The camera might be down! Last 'Camera is alive' log was at {last_check_time}.")
+#         return False
+#     else:
+#         print(f"Camera is alive. Last checked at {last_check_time}.")
+#         return True
+
+def check_camera_status(mode): # é passado o mode que é para verificar na camera interna no log, somente camra interna descreve isso no log
+    logpath = "/home/pi/.driver_analytics/logs/current/camera.log"
+    updated=0
     available = ' 1 '
+    if mode == 2:
+        updated = verificar_horario_camera()
+    command_frame=f"tail -n10 {logpath}"  
+    result, error=run_bash_command(command_frame)
     if "Error opening the camera" in result:
         available = ' 0 '
     else:
-        last_log_line=run_bash_command('tail -n2 /home/pi/.driver_analytics/logs/current/camera.log')
+        acurracy_line = f"tail -n5 {logpath} | grep -ia 'Camera is alive'"
+        last_log_line,error2=run_bash_command(acurracy_line)
         data_hora_ultima_msg_str = str(last_log_line).split(']')[0].strip('[')[-19:]
         timestamp_ultima_msg = time.mktime(time.strptime(data_hora_ultima_msg_str, '%d/%m/%Y %H:%M:%S'))
+        
         # Calcular a diferença de tempo
         diferenca_tempo = time.time() - timestamp_ultima_msg
-        if(diferenca_tempo > 300):
+        if(diferenca_tempo > 300 and updated == 0):
             available = ' 0 '
+        elif (diferenca_tempo > 300 and updated == 1):
+            first_try = find_last_camera_alive_line(acurracy_line)
+            time.sleep(90)
+            second_try = find_last_camera_alive_line(acurracy_line)
+            if first_try == second_try:
+                available = ' 0 '
+            else:
+                available = ' 1 '
+        # else:
+        #     available = ' 0 '
 
     command = "vcgencmd get_camera"
     output, error = run_bash_command(command)
@@ -366,12 +446,25 @@ def check_camera_status():
 
 def check_camera_status2():
     try:
-       subprocess.run(["raspistill", "-o", "/tmp/camera_test.jpg","-w", "640", "-h", "480", "-q", "1", "-n"],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
-       available = "1"
-       print("Foi possível tirar a foto, a camera esta disponivel")
+        subprocess.run(
+            ["raspistill", "-o", "/tmp/camera_test.jpg", "-w", "640", "-h", "480", "-q", "1", "-n"],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+        if not os.path.exists("/tmp/camera_test.jpg"):
+            raise RuntimeError("Foto não foi criada apesar do comando ter sido executado com sucesso.")
+        available = "1"
+        print("Foi possível tirar a foto, a câmera está disponível")
     except subprocess.CalledProcessError:
-       available = "0"
-       print("Não foi possível tirar a foto, a camera não está disponivel")
+        available = "0"
+        print("Não foi possível tirar a foto, a câmera não está disponível")
+    except FileNotFoundError:
+        available = "0"
+        print("O comando 'raspistill' não foi encontrado.")
+    except Exception as e:
+        available = "0"
+        print(f"Ocorreu um erro inesperado: {e}")
     
     command = "vcgencmd get_camera"
     output, error = run_bash_command(command)
@@ -904,8 +997,8 @@ def check_dmesg_for_errors():
         print(f"Erro ao executar dmesg: {e}")
         return []
     errors = {
-        "Under-voltage detected!": "Under-voltage",
-        "Over-current detected!": "Over-current",
+        # "Under-voltage detected!": "Under-voltage",
+        # "Over-current detected!": "Over-current",
         "I/O error": "I/O Error",
         "device descriptor read/64, error": "USB Device Error",
         "Out of memory:": "Out of Memory",
@@ -921,48 +1014,52 @@ def check_dmesg_for_errors():
     
 def send_email_message(placa, problema, csv_file_path, mode="cdl", error_message=None):
 
-    text_type = 'plain'
-    text = "[PKG] O veículo de placa " + placa + " apresentou o problema " 
-    if mode == "api":
-        text = "[API] O veículo de placa " + placa + " apresentou o problema "  
-    if mode == "cdl":
-        text = "[CDL] O veículo de placa " + placa + ": "+ problema 
-    if mode == "calib":
-        text = "[CALIB] O veículo de placa " + placa + " apresentou o problema " 
+    try:
+        text_type = 'plain'
+        text = "[PKG] O veículo de placa " + placa + " apresentou o problema " 
+        if mode == "api":
+            text = "[API] O veículo de placa " + placa + " apresentou o problema "  
+        if mode == "cdl":
+            text = "[CDL] O veículo de placa " + placa + ": "+ problema 
+        if mode == "calib":
+            text = "[CALIB] O veículo de placa " + placa + " apresentou o problema " 
 
-    if error_message:
-        text += f"\n\nErro detectado: {error_message}"
+        if error_message:
+            text += f"\n\nErro detectado: {error_message}"
 
-    msg = MIMEMultipart()
-    msg.attach(MIMEText(text, text_type, 'utf-8'))
+        msg = MIMEMultipart()
+        msg.attach(MIMEText(text, text_type, 'utf-8'))
 
-    subject = "[PKG] Veículo com placa " + placa + " está online!"
-    if mode == "api":
-        subject = "[API] Veículo " + placa + " Trocar acesso da empresa!"
-    if mode == "cdl":
-        subject = "[CDL] Veículo com placa " + placa + " apresentou o problema "
-    if mode == "calib":
-        subject = "[CALIB] Veículo com placa " + placa + " está online! Checar calibração!"
+        subject = "[PKG] Veículo com placa " + placa + " está online!"
+        if mode == "api":
+            subject = "[API] Veículo " + placa + " Trocar acesso da empresa!"
+        if mode == "cdl":
+            subject = "[CDL] Veículo com placa " + placa + " apresentou o problema "
+        if mode == "calib":
+            subject = "[CALIB] Veículo com placa " + placa + " está online! Checar calibração!"
 
-    msg['Subject'] = subject
-    msg['From'] = "cco@motora.ai"
-    msg['To'] = "joao.guimaraes@motora.ai, phellipe.santos@motora.ai, luiz@motora.ai"
+        msg['Subject'] = subject
+        msg['From'] = "cco@motora.ai"
+        msg['To'] = "joao.guimaraes@motora.ai, phellipe.santos@motora.ai, luiz@motora.ai"
 
-    if csv_file_path:
-        part = MIMEBase('application', 'octet-stream')
-        with open(csv_file_path, 'rb') as file:
-            part.set_payload(file.read())
-        encoders.encode_base64(part)
-        part.add_header('Content-Disposition', f'attachment; filename={os.path.basename(csv_file_path)}')
-        msg.attach(part)
+        if csv_file_path:
+            part = MIMEBase('application', 'octet-stream')
+            with open(csv_file_path, 'rb') as file:
+                part.set_payload(file.read())
+            encoders.encode_base64(part)
+            part.add_header('Content-Disposition', f'attachment; filename={os.path.basename(csv_file_path)}')
+            msg.attach(part)
 
-    mailserver = smtplib.SMTP('smtp.office365.com', 587)
-    mailserver.ehlo()
-    mailserver.starttls()
-    password = "1Q@w3e4r"
-    mailserver.login("cco@motora.ai", password)
-    mailserver.send_message(msg)
-    mailserver.quit()
+        mailserver = smtplib.SMTP('smtp.office365.com', 587)
+        mailserver.ehlo()
+        mailserver.starttls()
+        password = "1Q@w3e4r"
+        mailserver.login("cco@motora.ai", password)
+        mailserver.send_message(msg)
+        mailserver.quit()
+        return True
+    except Exception as e:
+        return False
 
 def check_rfid_log():
     # Command to verify if the RFID log contains the string 'no rfid found'
@@ -975,13 +1072,13 @@ def check_rfid_log():
         # Verify if the output contains the string 'no rfid found'
         if result != "":
             print("RFID log contains 'no rfid found'")
-            return "No Rfid Found\n"
+            return 1
         else:
             print("RFID log does not contain 'no rfid found'")
-            return ""
+            return 0
     except subprocess.CalledProcessError as e:
         print(f"Error executing command: {e}")
-        return ""
+        return 0
 
 def create_directory_if_not_exists(directory_path):
     # Expande o caminho do diretório (caso haja '~' no caminho)
@@ -992,11 +1089,101 @@ def create_directory_if_not_exists(directory_path):
         os.makedirs(expanded_path)
         print(f"Diretório {expanded_path} criado com sucesso.")
     else:
-        print(f"Diretório {expanded_path} já existe.") 
+        print(f"Diretório {expanded_path} já existe.")
+
+def registrar_problemas(var, caminho_arquivo):
+    data=current_time_pi() + current_timestamp()
+    
+    if len(var) > 0:
+        with open(caminho_arquivo, "a") as file:
+            file.write(f"{data}\n")
+            for item in var:
+                file.write(f"{item}\n")
+            
+
+def ler_problemas_registrados(caminho_arquivo):
+    try:
+        with open(caminho_arquivo, "r") as file:
+            problemas = file.readlines()
+        
+        # Concatena todas as linhas em uma única string
+        problemas_como_string = "".join(problemas)
+        return problemas_como_string
+    
+    except FileNotFoundError:
+        return "0"
+    
+# Função para ler o conteúdo do arquivo de problemas
+def ler_conteudo_arquivo(caminho):
+    if os.path.exists(caminho):
+        with open(caminho, "r") as file:
+            return file.read()
+    return ""
+
+# Função para comparar se o conteúdo atual já foi enviado anteriormente
+def verificar_envio_previo(problems_path, sent_path):
+    ultimo_conteudo = ler_conteudo_arquivo(sent_path)
+    conteudo_atual = ler_conteudo_arquivo(problems_path)
+    return ultimo_conteudo.strip() == conteudo_atual.strip()
+
+# Função para verificar se há novos problemas na lista
+def verificar_novos_problemas(problems_path, sent_path):
+    ultimo_conteudo = ler_conteudo_arquivo(sent_path)
+    conteudo_atual = ler_conteudo_arquivo(problems_path)
+    return conteudo_atual.strip() != ultimo_conteudo.strip()
+
+# Função para registrar o envio bem-sucedido
+def registrar_envio_sucesso(sent_path, conteudo_atual):
+    with open(sent_path, "w") as file:
+        file.write(conteudo_atual)
+        file.write(f"\nEnviado em: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+
+# Função principal de envio de e-mail
+def enviar_email_com_logica(var, vehicle_plate, problems_path, sent_path):
+    conncetion_chk = check_internet()
+    registrar_problemas(var, problems_path)
+    conteudo_atual = ler_conteudo_arquivo(problems_path)
+    if verificar_envio_previo(problems_path, sent_path):
+        print("Conteúdo já foi enviado anteriormente. Verificando o tempo.")
+        with open(sent_path, "r") as file:
+            linhas = file.readlines()
+            if linhas:
+                ultima_linha = linhas[-1]
+                if "Enviado em:" in ultima_linha:
+                    ultima_data_envio = datetime.strptime(ultima_linha.split(": ")[1].strip(), '%Y-%m-%d %H:%M:%S')
+                    if datetime.now() - ultima_data_envio < timedelta(hours=1):
+                        if not verificar_novos_problemas(problems_path, sent_path):
+                            print("Conteúdo idêntico foi enviado na última hora. Aguardando para reenviar.")
+                            return
+                        else:
+                            print("Novos problemas detectados. Enviando e-mail imediatamente.")
+    
+    if conncetion_chk:
+        sucesso = send_email_message(vehicle_plate, "Problemas detectados", problems_path, error_message=None)
+        if sucesso:
+            registrar_envio_sucesso(sent_path, conteudo_atual)
+        else:
+            with open(sent_path, "w") as file:
+                file.write("0")
+    else:
+        print("Sem conexão com a internet. Tentando novamente em 1 minuto...")
+        time.sleep(60)  # Espera 1 minuto
+        if check_internet():
+            print("Conexão restaurada. Tentando enviar o e-mail novamente...")
+            sucesso = send_email_message(vehicle_plate, "Problemas detectados", problems_path, error_message=None)
+            if sucesso:
+                registrar_envio_sucesso(sent_path, conteudo_atual)
+            else:
+                with open(sent_path, "w") as file:
+                    file.write("0")
+        else:
+            print("Falha ao enviar o e-mail após 2 tentativas. Deixando para a próxima execução.") 
 
 def main():
     directory_path = '/home/pi/.driver_analytics/health/'
-    print("Passei aqui inicio..." + current_time_pi())
+    # print("Passei aqui inicio..." + current_time_pi())
+    problems_path = '/home/pi/.driver_analytics/health/problems.txt'
+    sent_path = '/home/pi/.driver_analytics/health/sent.txt'
     port = '/dev/serial0'
     baudrate = 9600  # Inicialmente abrir com 9600 para enviar comandos
     final_baudrate = 115200  # Baudrate desejado
@@ -1033,8 +1220,8 @@ def main():
         elif AS1_BRIDGE_MODE == 2:
             filename = f"/home/pi/.driver_analytics/health/driver_analytics_health_i_{current_date}.csv"
     
-    if check_rfid_log() != "":
-        var.append("RFID não detectado\n")
+    if check_rfid_log() ==1:
+        var.append("RFID não detectado")
     
     ig = checking_ignition() # checa ignição
     date = current_time_pi() # busca data em que foi rodado o script
@@ -1047,8 +1234,8 @@ def main():
     interface_e = check_ethernet_interface() # Verifica se existe porta ethernet
     interface_wlan = check_wlan_interface() # Verifica se o wifi esta funcional
     temperature= temp_system() # Verifica temperatura do sistema
-    if temperature > 90:
-        var.append("Temperatura Alta\n")
+    # if temperature > 90:
+    #     var.append("Temperatura Alta\n")
     macmac=get_mac() # Verifica o mac adress
     network_usage = get_network_usage()
     voltage=check_voltage()
@@ -1061,7 +1248,7 @@ def main():
         connect_int_ext = check_ip_connectivity(ip_externa)
     else:
         connect_int_ext=None
-        var.append("Erro na conexão interna e externa\n")
+        var.append("Erro na conexão interna e externa")
     
     # Verify always on mode
     modee=AS1_ALWAYS_ON_MODE if AS1_ALWAYS_ON_MODE != '' else 0
@@ -1090,7 +1277,7 @@ def main():
     if AS1_CAMERA_TYPE == 0:
         Ard = check_ttyARD()
         if int(Ard) == 0:
-            var.append("Arduino não detectado\n")
+            var.append("Arduino não detectado")
     else:
         Ard = None
     
@@ -1098,9 +1285,9 @@ def main():
     teste = check_central_enable() 
     if teste == 1:
         print("Central ligado, verificado de forma normal...")
-        detected,available = check_camera_status() # detecta e verifica o camera
+        detected,available = check_camera_status(AS1_BRIDGE_MODE) # detecta e verifica o camera
         if int(available) == 0:
-            var.append("Erro na camera\n")
+            var.append("Erro na camera")
         # Verifica GPS
         if AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE ==1:
             fix, sig_str, sat_num = chk_gps3() # modificado para teste
@@ -1112,6 +1299,8 @@ def main():
         comandext = "sudo pkill camera"
         out1=run_bash_command(comandext)
         detected,available = check_camera_status2() # detecta e verifica o camera
+        if int(available) == 0:
+            var.append("Erro na camera")
         if AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE ==1: # Verifica GPS
             fix, sig_str, sat_num = initialize_and_read_gps(port, baudrate, final_baudrate)
         else:
@@ -1208,6 +1397,7 @@ def main():
             ["Disk_Read_Time (ms)", read_time],
             ["Disk_Write_Time (ms)", write_time]
         ]
+        
         with open(filename, mode='a', newline='') as file:  # Use mode='a' para adicionar ao arquivo existente
             # Verificar se o arquivo está vazio para escrever o cabeçalho
             if os.stat(filename).st_size == 0:
@@ -1224,11 +1414,41 @@ def main():
     
         if check_dmesg_for_errors() != None:
             var.extend(check_dmesg_for_errors())
-        print(f"tamanho do vetor var:  {len(var)}")
-        if(len(var) > 0):
+        # print(f"tamanho do vetor var:  {len(var)}")
+        
+        if len(var) > 0:
+            # enviar_email_com_logica(var, vehicle_plate, problems_path, sent_path)
             for item in var:
                 answer += f"{item}\n"
             send_email_message(vehicle_plate,answer, filename, error_message=None)
+        # if(len(var) > 0):
+        #     registrar_problemas(var, problems_path)
+        #     if conncetion_chk:
+        #         sen = send_email_message(vehicle_plate,"Problemas detectados", problems_path, error_message=None)
+        #         if sen:
+        #             with open(sent_path, "w") as file:
+        #                 file.write("1")
+        #                 file.write(f"{timestamp} + {date}")
+        #         else:
+        #             with open(sent_path, "w") as file:
+                        
+        #                 file.write("0")
+        #     else:
+        #         contador = 0
+        #         while contador < 5:
+        #             time.sleep(20)
+        #             rede = check_internet()
+        #             print("Tentando enviar email...")
+        #             if rede:
+        #                 send_email_message(vehicle_plate,"Problemas detectados", problems_path, error_message=None)
+        #                 contador=5
+        #             contador += 1
+                
+            
+            
+          
+        
+        # send_email_message(vehicle_plate,answer, filename, error_message=None)  
             #sending csv----------------------------------------
             # url="https://e50e-131-255-23-67.ngrok-free.app/heartbeat"
             # response = send_csv_to_api(filename, url, answer)
