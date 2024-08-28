@@ -74,25 +74,28 @@ def check_ip_connectivity(ip_address):
     except OSError:
         return ' 0 '
  
-# get_machine_storage(): This function calculates and returns the total and free storage space on the root filesystem. 
-# If the total storage is less than 10 GB, it attempts to expand the root filesystem and requests a reboot.
 def get_machine_storage():
-    total_size_status = ''
-    free_size_status = ''
-    result=os.statvfs('/')
-    block_size=result.f_frsize
-    total_blocks=result.f_blocks
-    free_blocks=result.f_bfree
-    giga=1024*1024*1024
-    total_size=total_blocks*block_size/giga
-    free_size=free_blocks*block_size/giga
-    total_size = round(total_size)
-    free_size = round(free_size)
+    result = os.statvfs('/')
+    block_size = result.f_frsize
+    total_blocks = result.f_blocks
+    free_blocks = result.f_bfree
+    giga = 1024 * 1024 * 1024
     
-    total_size_status = ' 1 ' if total_size > 10 else ' 0 '
-    free_size_status = ' 1 ' if free_size < 0.05 * total_size else ' 0 '
+    # calulate total and free size in GB
+    total_size = (total_blocks * block_size) / giga
+    free_size = (free_blocks * block_size) / giga
+    
+    # round values to 2 decimal places
+    total_size = round(total_size, 2)
+    free_size = round(free_size, 2)
+    
+    # verify if the total size is less than 10 GB
+    total_size_status = '1' if total_size > 10 else '0'
+    
+    # verify if the free size is less than 12% of the total size
+    free_size_status = '1' if free_size > 0.12 * total_size else '0'
 
-    return total_size_status, free_size_status,total_size
+    return total_size_status, free_size_status, total_size
 
 # clear_log_file(log_file_path): This function clears the contents of a log file specified by log_file_path.
 def clear_log_file(log_file_path):
@@ -196,60 +199,65 @@ def parse_gps_data(gps_data):
   
 
 def chk_gps3():
-    gps_device_fd = "/dev/serial0"
-    gps_data = ""
+    if check_serial0() :    
+        gps_device_fd = "/dev/serial0"
+        gps_data = ""
 
-    try:
-        with subprocess.Popen(['cat', gps_device_fd], stdout=subprocess.PIPE, stderr=subprocess.PIPE) as proc:
-            time.sleep(2)
-            proc.terminate()
-            stdout, stderr = proc.communicate()
-            gps_data = stdout.decode('utf-8', errors='ignore')
-        
-            if stderr:
-                print(f"Erro ao acessar o dispositivo serial: {stderr.decode('utf-8', errors='ignore')}")
-                return "No Fix", "0", "0"
-
-    except Exception as e:
-        print(f"Erro ao executar o comando cat: {e}")
-        return "No Fix", "0", "0"
-
-    fix_status = "No Fix"
-    num_satellites = 0
-    signal_quality = 0
-    countA = 0
-    countV = 0
-
-    nmea_sentences = gps_data.split('\n')  # Dividir os dados GPS em sentenças NMEA
-    for sentence in nmea_sentences:
-        parts = sentence.split(',')
         try:
-            if sentence.startswith('$GPGGA') or sentence.startswith('$GNGGA'):
-                # A sentença GGA fornece dados de fixação
-                num_satellites = int(parts[7])
-            elif sentence.startswith('$GPRMC') or sentence.startswith('$GNRMC'):
-                # A sentença RMC fornece o status de validade
-                if parts[2] == 'A':
-                    countA += 1
-                else:
-                    countV += 1
-            elif sentence.startswith('$GPGSV') or sentence.startswith('$GNGSV'):
-                # A sentença GSV fornece a relação sinal-ruído
-                for i in range(7, len(parts), 4):
-                    snr = parts[i]
-                    if snr.isdigit():
-                        signal_quality = max(signal_quality, int(snr))
-            elif sentence.startswith('$GNGSA'):
-                # A sentença GSA fornece o tipo de fix
-                if parts[2] == '1':
-                    fix_status = "1D"
-                elif parts[2] == '2':
-                    fix_status = "2D"
-                elif parts[2] == '3':
-                    fix_status = "3D"
-        except (IndexError, ValueError) as e:
-            print(f"Erro ao analisar a sentença: {sentence}, Erro: {e}")
-            continue
+            with subprocess.Popen(['cat', gps_device_fd], stdout=subprocess.PIPE, stderr=subprocess.PIPE) as proc:
+                time.sleep(2)
+                proc.terminate()
+                stdout, stderr = proc.communicate()
+                gps_data = stdout.decode('utf-8', errors='ignore')
+
+                if stderr:
+                    print(f"Erro ao acessar o dispositivo serial: {stderr.decode('utf-8', errors='ignore')}")
+                    return "No Fix", "0", "0"
+
+        except Exception as e:
+            print(f"Erro ao executar o comando cat: {e}")
+            return "No Fix", "0", "0"
+
+        fix_status = "No Fix"
+        num_satellites = 0
+        signal_quality = 0
+        countA = 0
+        countV = 0
+
+        nmea_sentences = gps_data.split('\n')  # Dividir os dados GPS em sentenças NMEA
+        for sentence in nmea_sentences:
+            parts = sentence.split(',')
+            try:
+                if sentence.startswith('$GPGGA') or sentence.startswith('$GNGGA'):
+                    # A sentença GGA fornece dados de fixação
+                    num_satellites = int(parts[7])
+                elif sentence.startswith('$GPRMC') or sentence.startswith('$GNRMC'):
+                    # A sentença RMC fornece o status de validade
+                    if parts[2] == 'A':
+                        countA += 1
+                    else:
+                        countV += 1
+                elif sentence.startswith('$GPGSV') or sentence.startswith('$GNGSV'):
+                    # A sentença GSV fornece a relação sinal-ruído
+                    for i in range(7, len(parts), 4):
+                        snr = parts[i]
+                        if snr.isdigit():
+                            signal_quality = max(signal_quality, int(snr))
+                elif sentence.startswith('$GNGSA'):
+                    # A sentença GSA fornece o tipo de fix
+                    if parts[2] == '1':
+                        fix_status = "1D"
+                    elif parts[2] == '2':
+                        fix_status = "2D"
+                    elif parts[2] == '3':
+                        fix_status = "3D"
+            except (IndexError, ValueError) as e:
+                print(f"Erro ao analisar a sentença: {sentence}, Erro: {e}")
+                continue
+        else:
+            fix_status = "No Fix"
+            num_satellites = 0
+            signal_quality = 0
 
     return fix_status, str(signal_quality), str(num_satellites)
 
@@ -275,6 +283,9 @@ def check_ttyARD():
 
 def check_ttyMDN():
     return "1" if os.path.exists('/dev/ttyMDN') else "0"
+
+def check_serial0():
+    return "1" if os.path.exists('/dev/serial0') else "0"
 
 def send_serial_command(command):
     if check_ttyMDN() == "1":
@@ -1101,17 +1112,23 @@ def registrar_problemas(var, caminho_arquivo):
                 file.write(f"{item}\n")
             
 
-def ler_problemas_registrados(caminho_arquivo):
+def read_registered_problems(caminho_arquivo):
     try:
         with open(caminho_arquivo, "r") as file:
-            problemas = file.readlines()
-        
-        # Concatena todas as linhas em uma única string
-        problemas_como_string = "".join(problemas)
-        return problemas_como_string
+            linhas = file.readlines()
+        if linhas != None:
+            # Ignora as duas primeiras linhas (data e horário)
+            problemas = linhas[2:]
+            # Concatena todas as linhas restantes e remove espaços extras
+            problemas_como_string = "".join(problemas).strip()
+            # Divide a string em uma lista de problemas, separando por vírgula
+            lista_de_problemas = [problema.strip() for problema in problemas_como_string.split(',')]
+        else:
+            lista_de_problemas = []
+        return lista_de_problemas
     
     except FileNotFoundError:
-        return "0"
+        return []
     
 # Função para ler o conteúdo do arquivo de problemas
 def ler_conteudo_arquivo(caminho):
@@ -1120,64 +1137,41 @@ def ler_conteudo_arquivo(caminho):
             return file.read()
     return ""
 
-# Função para comparar se o conteúdo atual já foi enviado anteriormente
-def verificar_envio_previo(problems_path, sent_path):
-    ultimo_conteudo = ler_conteudo_arquivo(sent_path)
-    conteudo_atual = ler_conteudo_arquivo(problems_path)
-    return ultimo_conteudo.strip() == conteudo_atual.strip()
-
-# Função para verificar se há novos problemas na lista
-def verificar_novos_problemas(problems_path, sent_path):
-    ultimo_conteudo = ler_conteudo_arquivo(sent_path)
-    conteudo_atual = ler_conteudo_arquivo(problems_path)
-    return conteudo_atual.strip() != ultimo_conteudo.strip()
+def clean_file(path_file):
+    with open(path_file, 'w') as file:
+        pass  # Apenas abre o arquivo no modo 'w', que limpa o conteúdo
 
 # Função para registrar o envio bem-sucedido
-def registrar_envio_sucesso(sent_path, conteudo_atual):
+def Register_sent_email(sent_path):
     with open(sent_path, "w") as file:
-        file.write(conteudo_atual)
-        file.write(f"\nEnviado em: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-
-# Função principal de envio de e-mail
-def enviar_email_com_logica(var, vehicle_plate, problems_path, sent_path):
-    conncetion_chk = check_internet()
-    registrar_problemas(var, problems_path)
-    conteudo_atual = ler_conteudo_arquivo(problems_path)
-    if verificar_envio_previo(problems_path, sent_path):
-        print("Conteúdo já foi enviado anteriormente. Verificando o tempo.")
-        with open(sent_path, "r") as file:
-            linhas = file.readlines()
-            if linhas:
-                ultima_linha = linhas[-1]
-                if "Enviado em:" in ultima_linha:
-                    ultima_data_envio = datetime.strptime(ultima_linha.split(": ")[1].strip(), '%Y-%m-%d %H:%M:%S')
-                    if datetime.now() - ultima_data_envio < timedelta(hours=1):
-                        if not verificar_novos_problemas(problems_path, sent_path):
-                            print("Conteúdo idêntico foi enviado na última hora. Aguardando para reenviar.")
-                            return
-                        else:
-                            print("Novos problemas detectados. Enviando e-mail imediatamente.")
-    
-    if conncetion_chk:
-        sucesso = send_email_message(vehicle_plate, "Problemas detectados", problems_path, error_message=None)
-        if sucesso:
-            registrar_envio_sucesso(sent_path, conteudo_atual)
-        else:
-            with open(sent_path, "w") as file:
-                file.write("0")
+        file.write(f"Enviado em: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        
+def verify_send_email(var, problems_path, sent_path):
+    enviado=ler_conteudo_arquivo(sent_path)
+    prob=read_registered_problems(problems_path)
+    dif=0
+    if enviado.startswith("Enviado em:"):
+        # Extrai a parte da data e do horário
+        data_horario_str = enviado.replace("Enviado em: ", "")
+        
+        # Divide em data e horário
+        data_str, horario_str = data_horario_str.split(' ')
+        enviado_datetime = datetime.strptime(data_str + " " + horario_str, '%Y-%m-%d %H:%M:%S')
     else:
-        print("Sem conexão com a internet. Tentando novamente em 1 minuto...")
-        time.sleep(60)  # Espera 1 minuto
-        if check_internet():
-            print("Conexão restaurada. Tentando enviar o e-mail novamente...")
-            sucesso = send_email_message(vehicle_plate, "Problemas detectados", problems_path, error_message=None)
-            if sucesso:
-                registrar_envio_sucesso(sent_path, conteudo_atual)
-            else:
-                with open(sent_path, "w") as file:
-                    file.write("0")
-        else:
-            print("Falha ao enviar o e-mail após 2 tentativas. Deixando para a próxima execução.") 
+        return True
+    #check diferences between var and prob
+    if len(var) > 0:
+        for item in var:
+            if item not in prob:
+                prob.append(item)
+                dif=1    
+    dif_timestamp = datetime.now() - enviado_datetime
+    #dif more than 1 hour
+    if dif_timestamp > timedelta(hours=1) or dif == 1:
+        return True
+    else:
+        return False
+    
 
 def main():
     directory_path = '/home/pi/.driver_analytics/health/'
@@ -1257,7 +1251,7 @@ def main():
     if AS1_NUMBER_OF_EXTRA_CAMERAS >0:
         connect_extra= check_ip_connectivity(ip_extra)
     else:
-        connect_extra= None
+        connect_extra= '0'
     
     # Verify modem process
     if AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE ==1: # 0 master sem slave / 1 master com slave / 2 e slave
@@ -1414,13 +1408,50 @@ def main():
     
         if check_dmesg_for_errors() != None:
             var.extend(check_dmesg_for_errors())
-        # print(f"tamanho do vetor var:  {len(var)}")
         
+        if os.path.exists(problems_path):
+            print("File exists")
+        else:
+            print("File does not exist")
+            clean_file(problems_path)
+
+        if os.path.exists(sent_path):
+            print("File exists")
+        else:
+            print("File does not exist")
+            clean_file(sent_path)
+        
+        #checking if have problem to send email
         if len(var) > 0:
-            # enviar_email_com_logica(var, vehicle_plate, problems_path, sent_path)
             for item in var:
                 answer += f"{item}\n"
-            send_email_message(vehicle_plate,answer, filename, error_message=None)
+            verfied = verify_send_email(var, problems_path, sent_path)
+            if verfied and conncetion_chk:    
+                send_email_message(vehicle_plate,answer, filename, error_message=None)
+                clean_file(problems_path)
+                clean_file(sent_path)
+                registrar_problemas(var,problems_path)
+                Register_sent_email(sent_path)
+            elif verfied and not conncetion_chk:
+                print("problems detected, but no internet connection")
+                count =0
+                if not conncetion_chk:
+                    while count < 5:
+                        time.sleep(20)
+                        conncetion_chk = check_internet()
+                        print("Trying to send email...")
+                        if conncetion_chk:
+                            send_email_message(vehicle_plate,answer, filename, error_message=None)
+                            clean_file(problems_path)
+                            clean_file(sent_path)
+                            registrar_problemas(var,problems_path)
+                            Register_sent_email(sent_path)
+                            count=5
+                        count += 1
+                    if count == 5:
+                        clean_file(problems_path)
+                        clean_file(sent_path)
+                        registrar_problemas(var,problems_path)
         # if(len(var) > 0):
         #     registrar_problemas(var, problems_path)
         #     if conncetion_chk:
