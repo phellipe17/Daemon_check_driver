@@ -86,15 +86,14 @@ def get_machine_storage():
     free_size = (free_blocks * block_size) / giga
     
     # round values to 2 decimal places
-    total_size = round(total_size, 2)
-    free_size = round(free_size, 2)
-    
+    total_size = round(total_size)
+    free_size = round(free_size)
     # verify if the total size is less than 10 GB
     total_size_status = '1' if total_size > 10 else '0'
     
     # verify if the free size is less than 12% of the total size
-    free_size_status = '1' if free_size > 0.12 * total_size else '0'
-
+    free_size_status = '1' if free_size > round(0.12 * total_size) else '0'
+    
     return total_size_status, free_size_status, total_size
 
 # clear_log_file(log_file_path): This function clears the contents of a log file specified by log_file_path.
@@ -1167,7 +1166,7 @@ def verify_send_email(var, problems_path, sent_path):
                 dif=1    
     dif_timestamp = datetime.now() - enviado_datetime
     #dif more than 1 hour
-    if dif_timestamp > timedelta(hours=1) or dif == 1:
+    if dif_timestamp > timedelta(hours=3) or dif == 1:
         return True
     else:
         return False
