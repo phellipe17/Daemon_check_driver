@@ -1165,9 +1165,77 @@ def verify_send_email(var, problems_path, sent_path):
                 prob.append(item)
                 dif=1    
     dif_timestamp = datetime.now() - enviado_datetime
-    #dif more than 1 hour
-    if dif_timestamp > timedelta(hours=3) or dif == 1:
+    #dif_timpestamp if you want to compare the time of last sent email
+    # if dif_timestamp > timedelta(hours=3) or dif == 1:
+    if dif == 1:
         return True
+    else:
+        return False
+
+# def calculate_time_difference():
+    
+#     time_difference = 0.0
+#     if os.path.exists('/home/pi/.driver_analytics/logs/current/recorder_file.log'):
+#         log_lines, error= run_bash_command('cat /home/pi/.driver_analytics/logs/current/recorder_file.log | grep -ia outfile')
+
+#         # Extrair o horário da primeira linha de log
+#         first_log = log_lines[0]
+
+#         # Exemplo: [03/09/2024 14:28:16] ... 
+#         first_time_str = first_log.split(']')[0].strip('[')
+
+#         # Converter a string para um objeto datetime
+#         first_time = datetime.strptime(first_time_str, '%d/%m/%Y %H:%M:%S')
+
+#         # Obter o horário atual
+#         current_time = datetime.now()
+
+#         # Calcular a diferença em minutos
+#         time_difference = (current_time - first_time).total_seconds() / 60.0
+#         print(time_difference)
+#     return time_difference
+
+def calculate_time_difference():
+    time_difference = 0.0
+    first_time = None
+    if os.path.exists('/home/pi/.driver_analytics/logs/current/recorder_file.log'):
+        log_lines, error= run_bash_command('cat /home/pi/.driver_analytics/logs/current/recorder_file.log | grep -ia outfile')
+        # Procurar a primeira linha que contém 'outfile'
+        for line in log_lines:
+            if 'outfile' in line:
+                # Extrair o nome do arquivo que contém a data e hora
+                start_index = line.find('outfile:') + len('outfile: ')
+                file_path = line[start_index:].strip().split(' ')[0]  # Pega o caminho do arquivo
+
+                # Extrair a parte da data e hora do arquivo: '20240903_142816'
+                date_time_str = file_path.split('/')[-1].replace('_NF.mp4', '').replace('_', '')  # Exemplo: '20240903_142816'
+                
+                # Converte a string para um objeto datetime, sem o sublinhado
+                first_time = datetime.strptime(date_time_str, '%Y%m%d%H%M%S')
+                break  # Interrompe o loop após encontrar a primeira ocorrência de 'outfile'
+
+        if first_time is None:
+            print("Nenhuma linha com 'outfile' foi encontrada.")
+            return time_difference
+
+        # Obter o horário atual
+        current_time = datetime.now()
+
+        # Calcular a diferença em minutos
+        time_difference = (current_time - first_time).total_seconds() / 60.0
+
+    return time_difference
+
+def calculate_recorded_files(dif_time):
+    if dif_time !=0:
+        count,error= run_bash_command('cat /home/pi/.driver_analytics/logs/current/recorder_file.log | grep -ia outfile | wc -l')
+        print(count)
+        dif_videos = (0.95*dif_time) - count
+        print(dif_videos)
+        if (0.9*dif_time) < count:
+            return False
+        else:
+            return True
     else:
         return False
     
@@ -1421,6 +1489,9 @@ def main():
             clean_file(sent_path)
         
         #checking if have problem to send email
+        dif_tim=calculate_time_difference()
+        resp = calculate_recorded_files(dif_tim)
+        print(resp)
         if len(var) > 0:
             for item in var:
                 answer += f"{item}\n"
