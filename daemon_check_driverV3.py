@@ -13,6 +13,7 @@ import csv
 import smtplib
 from datetime import datetime, timedelta
 
+
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
@@ -29,8 +30,8 @@ ip_interna="10.0.90.196"
 ip_externa="10.0.90.195"
 retry_time_in_seconds = int(60)
 token = ""
-pathe="/home/pi/.driver_analytics/database/check_health_e.db"
-pathi="/home/pi/.driver_analytics/database/check_health_i.db"
+pathe="/home/pi/.health_monitor/check_health_e.db"
+pathi="/home/pi/.health_monitor/check_health_i.db"
 pathdriver="/home/pi/.driver_analytics/database/driveranalytics.db"
 
 
@@ -260,6 +261,54 @@ def chk_gps3():
 
     return fix_status, str(signal_quality), str(num_satellites)
 
+def chk_gps4():
+    if check_serial0() :    
+        gps_device_fd = "timeout 4 cat /dev/serial0"
+        gps_data = ""
+
+        gps_data, error = run_bash_command(gps_device_fd)
+        # print(gps_data)
+        
+        if gps_data is None:
+            return "No Fix", "0", "0"
+        
+        fix_status = "No Fix"
+        num_satellites = 0
+        signal_quality = 0
+        countA = 0
+        countV = 0
+
+        nmea_sentences = gps_data.split('\n')  # Dividir os dados GPS em sentenças NMEA
+        for sentence in nmea_sentences:
+            parts = sentence.split(',')
+            try:
+                if sentence.startswith('$GPGGA') or sentence.startswith('$GNGGA'):
+                    num_satellites = int(parts[7])
+                elif sentence.startswith('$GPRMC') or sentence.startswith('$GNRMC'):
+                    if parts[2] == 'A':
+                        countA += 1
+                    else:
+                        countV += 1
+                elif sentence.startswith('$GPGSV') or sentence.startswith('$GNGSV'):
+                    for i in range(7, len(parts), 4):
+                        snr = parts[i]
+                        if snr.isdigit():
+                            signal_quality = max(signal_quality, int(snr))
+                elif sentence.startswith('$GNGSA'):
+                    if parts[2] == '1':
+                        fix_status = "1D"
+                    elif parts[2] == '2':
+                        fix_status = "2D"
+                    elif parts[2] == '3':
+                        fix_status = "3D"
+            except (IndexError, ValueError) as e:
+                print(f"Erro ao analisar a sentença: {sentence}, Erro: {e}")
+                continue
+
+        return fix_status, str(signal_quality), str(num_satellites)
+    else:
+        return "No Fix", "0", "0"
+
 
     
 def check_modem():
@@ -319,40 +368,63 @@ def send_serial_command(command):
         return "Error"
     
 def modem_signal():
-    text_signal = b'AT+CSQ\r'
-    result = send_serial_command(text_signal)
-    if result != "Error":
-        try:
-            signal_strength = float(result.split("\n")[1].split(":")[1].strip().replace(',', '.'))
-            if signal_strength == 99:
-                return '0'
-            elif signal_strength >= 2:
-                return '1'
-            else:
-                return '0'
-        except (IndexError, ValueError) as e:
-            print(f"Parsing error: {e}")
+    if os.path.exists('/dev/ttyMDN'):
+        text_signal =b'AT+CSQ\r'
+        result = send_serial_command(text_signal)
+        if result is None:
             return '0'
+        else:
+            result2 = result.split("\n")[1].split(":")[1].strip()	    
+            if len(result2) > 0:
+                signal_strength=float(result2.replace(',','.'))
+                if (signal_strength == 99):
+                    return ' 0 '
+                elif (signal_strength >= 31):
+                    return ' 1 '
+                elif (signal_strength < 31 and signal_strength >= 2):
+                    return ' 1 '
+                elif (signal_strength < 2 and  signal_strength >= 0):
+                    return ' 0 '
+            else:
+                return ' 0 '
     else:
+        ' 0 '
+    
+def get_iccid():
+    text_status = b'AT+CCID\r'  # Comando para pegar o ICCID
+    result = send_serial_command(text_status)  # Envia o comando via serial
+    
+    if result is None:
+        return '0'  # Se não houver resposta, retorna 0
+    
+    try:
+        # Divide o resultado em partes, espera-se que a resposta venha no formato "+CCID: <ICCID>"
+        result2 = result.split(":")[1].strip()
+        result3 = result2.split("\n")[0].strip()
+        
+        # Verifica se o ICCID foi retornado corretamente e tem o tamanho típico de 19 a 20 dígitos
+        if result3.isdigit() and (19 <= len(result3) <= 20):
+            return '1'
+        else:
+            return '0'  # Retorna 0 se o ICCID estiver em um formato inesperado
+    except IndexError:
+        # Se o formato da resposta estiver incorreto ou sem ":", retorna 0
         return '0'
 
+
 def modem_status():
-    text_status = b'AT+CPAS\r'
+    text_status =b'AT+CPAS\r'
     result = send_serial_command(text_status)
-    if result != "Error":    
-        try:
-            result2 = result.split(":")[1].strip().lower()
-            if "ok" in result2:
-                return '1'
-            elif "error" in result2:
-                return '0'
-            else:
-                return '0'
-        except IndexError as e:
-            print(f"Parsing error: {e}")
-            return '0'
-    else:
+    if result is None:
         return '0'
+    else:
+        result2 = result.split(":")[1].strip()
+        if "ok" in result2.lower():
+            return ' 1 '
+        elif "error" in result2.lower():
+            return ' 0 '
+        else:
+            return "Undefined"
 
     
 # def get_ccid():
@@ -558,6 +630,7 @@ def verificar_e_criar_tabela(path):
             Detected_camera TEXT,
             Available_camera TEXT,
             Active_imu TEXT,
+            Sim_inserted TEXT,
             Swap_usage TEXT,
             CPU_Usage TEXT,
             ETH0_Interface TEXT,
@@ -586,10 +659,10 @@ def adicionar_dados(data,path):
         cursor.execute(''' INSERT INTO health_device (
             Data,timestamp,uptime, ignition, mode_aways_on, connection_internet, Modem_IP, Signal_modem, Status_modem, connection_extra, 
             connection_INT_EXT, Expanded, Free_disk, Size_disk, GPS_Fix, Signal_Strength, Avaible_Satellites, Detected_camera, 
-            Available_camera, Active_imu, Swap_usage, CPU_Usage, ETH0_Interface, WLAN_Interface, USB_LTE, USB_ARD, Temperature, 
+            Available_camera, Active_imu, Sim_inserted, Swap_usage, CPU_Usage, ETH0_Interface, WLAN_Interface, USB_LTE, USB_ARD, Temperature, 
             Mac_Address, Bytes_Sent, Bytes_Received, Voltage, Disk_Read_Count, Disk_Write_Count, Disk_Read_Bytes, 
             Disk_Write_Bytes, Disk_Read_Time_ms, Disk_Write_Time_ms) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''', data)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''', data)
         conn.commit()
         conn.close()
 
@@ -614,7 +687,7 @@ def select_field_from_table(conn, field, table):
 
     user_ret = value[0]
 
-    log(type(user_ret))
+    # log(type(user_ret))
 
     if (type(user_ret) is str):
         log("type is string")
@@ -856,23 +929,24 @@ def transformar_em_json(dados):
             "Detected_camera": linha[18],
             "Available_camera": linha[19],
             "Active_imu": linha[20],
-            "Swap_usage": linha[21],
+            "Sim_inserted": linha[21],
+            "Swap_usage": linha[22],
             "CPU_Usage": linha[22],
-            "ETH0_Interface": linha[23],
-            "WLAN_Interface": linha[24],
-            "USB_LTE": linha[25],
-            "USB_ARD": linha[26],
-            "Temperature": linha[27],
-            "Mac_Address": linha[28],
-            "Bytes_Sent": linha[29],
-            "Bytes_Received": linha[30],
-            "Voltage": linha[31],
-            "Disk_Read_Count": linha[32],
-            "Disk_Write_Count": linha[33],
-            "Disk_Read_Bytes": linha[34],
-            "Disk_Write_Bytes": linha[35],
-            "Disk_Read_Time_ms": linha[36],
-            "Disk_Write_Time_ms": linha[37]
+            "ETH0_Interface": linha[24],
+            "WLAN_Interface": linha[25],
+            "USB_LTE": linha[26],
+            "USB_ARD": linha[27],
+            "Temperature": linha[28],
+            "Mac_Address": linha[29],
+            "Bytes_Sent": linha[30],
+            "Bytes_Received": linha[31],
+            "Voltage": linha[32],
+            "Disk_Read_Count": linha[33],
+            "Disk_Write_Count": linha[34],
+            "Disk_Read_Bytes": linha[35],
+            "Disk_Write_Bytes": linha[36],
+            "Disk_Read_Time_ms": linha[37],
+            "Disk_Write_Time_ms": linha[38]
         }
         resultado.append(json_linha)
     return resultado
@@ -1172,34 +1246,14 @@ def verify_send_email(var, problems_path, sent_path):
     else:
         return False
 
-# def calculate_time_difference():
-    
-#     time_difference = 0.0
-#     if os.path.exists('/home/pi/.driver_analytics/logs/current/recorder_file.log'):
-#         log_lines, error= run_bash_command('cat /home/pi/.driver_analytics/logs/current/recorder_file.log | grep -ia outfile')
-
-#         # Extrair o horário da primeira linha de log
-#         first_log = log_lines[0]
-
-#         # Exemplo: [03/09/2024 14:28:16] ... 
-#         first_time_str = first_log.split(']')[0].strip('[')
-
-#         # Converter a string para um objeto datetime
-#         first_time = datetime.strptime(first_time_str, '%d/%m/%Y %H:%M:%S')
-
-#         # Obter o horário atual
-#         current_time = datetime.now()
-
-#         # Calcular a diferença em minutos
-#         time_difference = (current_time - first_time).total_seconds() / 60.0
-#         print(time_difference)
-#     return time_difference
 
 def calculate_time_difference():
     time_difference = 0.0
     first_time = None
     if os.path.exists('/home/pi/.driver_analytics/logs/current/recorder_file.log'):
         log_lines, error= run_bash_command('cat /home/pi/.driver_analytics/logs/current/recorder_file.log | grep -ia outfile')
+        # print(log_lines)
+        log_lines= log_lines.split('\n')
         # Procurar a primeira linha que contém 'outfile'
         for line in log_lines:
             if 'outfile' in line:
@@ -1217,22 +1271,25 @@ def calculate_time_difference():
         if first_time is None:
             print("Nenhuma linha com 'outfile' foi encontrada.")
             return time_difference
-
+        # print(first_time)
         # Obter o horário atual
         current_time = datetime.now()
 
         # Calcular a diferença em minutos
         time_difference = (current_time - first_time).total_seconds() / 60.0
+        # print(time_difference)
 
     return time_difference
 
 def calculate_recorded_files(dif_time):
     if dif_time !=0:
         count,error= run_bash_command('cat /home/pi/.driver_analytics/logs/current/recorder_file.log | grep -ia outfile | wc -l')
-        print(count)
-        dif_videos = (0.95*dif_time) - count
-        print(dif_videos)
-        if (0.9*dif_time) < count:
+        count = float(count)
+        # print(count)
+        # print(type(count))
+        dif_videos = count - dif_time
+        # print(dif_videos)
+        if dif_videos > 1:
             return False
         else:
             return True
@@ -1327,12 +1384,14 @@ def main():
         signal = modem_signal()
         status = modem_status()
         Lte = check_ttyLTE()
+        icc = get_iccid()
     else:
        Process_modem = None
        imu = None
        signal = None
        status = None
        Lte = None
+       icc = None
     
     # Verify Arduino
     if AS1_CAMERA_TYPE == 0:
@@ -1351,7 +1410,7 @@ def main():
             var.append("Erro na camera")
         # Verifica GPS
         if AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE ==1:
-            fix, sig_str, sat_num = chk_gps3() # modificado para teste
+            fix, sig_str, sat_num = chk_gps4() # modificado para teste
         else:
             fix, sig_str, sat_num = None,None,None
                
@@ -1390,6 +1449,7 @@ def main():
             detected,
             available,
             imu,
+            icc,
             swapa, 
             cpu, 
             interface_e,
@@ -1440,6 +1500,7 @@ def main():
             ["Detected_camera", detected],
             ["Available_camera", available],
             ["Active", imu],
+            ["Sim_inserted", icc],
             ["Swap_usage(%)", swapa], 
             ["CPU_Usage(%)", cpu], 
             ["ETH0_Interface", interface_e],
@@ -1488,10 +1549,15 @@ def main():
             print("File does not exist")
             clean_file(sent_path)
         
+        
         #checking if have problem to send email
         dif_tim=calculate_time_difference()
         resp = calculate_recorded_files(dif_tim)
-        print(resp)
+        # print(resp)
+        if resp == False:
+            print("Erro na gravação de vídeo")
+            var.append("Erro em gravação de vídeo")
+            
         if len(var) > 0:
             for item in var:
                 answer += f"{item}\n"
