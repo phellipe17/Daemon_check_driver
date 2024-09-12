@@ -45,12 +45,20 @@ def run_bash_command(command, timeout=10):
         return "", "Command timed out"
 
 
-
 def imu_check():
-    command2 = 'cat /home/pi/.driver_analytics/logs/current/imu.log'
-    result, error=run_bash_command(command2)
-    if 'MPU-9250 init complete' in result:
-        return ' 1 '
+    if os.path.exists('/home/pi/.driver_analytics/logs/current/imu.log'):
+        command2 = 'grep -nai error /home/pi/.driver_analytics/logs/current/imu.log'
+        result, error=run_bash_command(command2)
+        if result != "":
+            return '0'
+        else:
+            return '1'
+        # if 'MPU-9250 init complete' in result:
+        #     return ' 1 '
+        # elif 'Error on imu init' in result or 'Failed to read MPU9250 id' in result:
+        #     return ' 0 '
+        # else:
+        #     return ' 0 '
     else:
         return ' 0 '
 
@@ -413,18 +421,21 @@ def get_iccid():
 
 
 def modem_status():
-    text_status =b'AT+CPAS\r'
-    result = send_serial_command(text_status)
-    if result is None:
-        return '0'
-    else:
-        result2 = result.split(":")[1].strip()
-        if "ok" in result2.lower():
-            return ' 1 '
-        elif "error" in result2.lower():
-            return ' 0 '
+    if os.path.exists('/dev/ttyMDN'):
+        text_status =b'AT+CPAS\r'
+        result = send_serial_command(text_status)
+        if result is None:
+            return '0'
         else:
-            return "Undefined"
+            result2 = result.split(":")[1].strip()
+            if "ok" in result2.lower():
+                return ' 1 '
+            elif "error" in result2.lower():
+                return ' 0 '
+            else:
+                return "Undefined"
+    else:
+        return '0'
 
     
 # def get_ccid():
@@ -586,10 +597,13 @@ def log(s, value=None):
 
 
 def checking_ignition():
-    command="cat /dev/shm/IGNITION_IS_ON"
-    output, error = run_bash_command(command)
-    out=int(output)
-    return out
+    if os.path.exists('/dev/shm/IGNITION_IS_ON'):
+        command="cat /dev/shm/IGNITION_IS_ON"
+        output, error = run_bash_command(command)
+        out=int(output)
+        return out
+    else:
+        return '0'
 
 def current_time_pi():
     command="date +'%Y/%m/%d'"
@@ -1289,7 +1303,7 @@ def calculate_recorded_files(dif_time):
         # print(type(count))
         dif_videos = count - dif_time
         # print(dif_videos)
-        if dif_videos > 1:
+        if dif_videos > 2:
             return False
         else:
             return True
