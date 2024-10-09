@@ -25,13 +25,18 @@ directory_path = '/home/pi/.driver_analytics/logs/current/'
 db_lock = threading.Lock()
 r = requests.session()
 DEBUG = True
-ip_extra="10.0.89.11"
+ip_extra1= "10.0.89.11"
+ip_extra2= "10.0.89.12"
+ip_extra3= "10.0.89.13"
+ip_extra4= "10.0.89.14"
+ip_extra5= "10.0.89.15"
 ip_interna="10.0.90.196"
 ip_externa="10.0.90.195"
 retry_time_in_seconds = int(60)
 token = ""
 pathe="/home/pi/.health_monitor/check_health_e.db"
 pathi="/home/pi/.health_monitor/check_health_i.db"
+pathex="/home/pi/.health_monitor/check_health_ex.db"
 pathdriver="/home/pi/.driver_analytics/database/driveranalytics.db"
 
 
@@ -277,7 +282,7 @@ def chk_gps4():
         gps_data, error = run_bash_command(gps_device_fd)
         # print(gps_data)
         
-        if gps_data is None:
+        if not gps_data:
             return "No Fix", "0", "0"
         
         fix_status = "No Fix"
@@ -1252,7 +1257,7 @@ def verify_send_email(var, problems_path, sent_path):
             if item not in prob:
                 prob.append(item)
                 dif=1    
-    dif_timestamp = datetime.now() - enviado_datetime
+    # dif_timestamp = datetime.now() - enviado_datetime
     #dif_timpestamp if you want to compare the time of last sent email
     # if dif_timestamp > timedelta(hours=3) or dif == 1:
     if dif == 1:
@@ -1295,6 +1300,41 @@ def calculate_time_difference():
 
     return time_difference
 
+def calculate_time_difference_extra(nextra):
+    time_difference = 0.0
+    first_time = None
+    if os.path.exists(f'/home/pi/.driver_analytics/logs/current/recorder_file_ip{nextra}.log'):
+        log_lines, error= run_bash_command(f'cat /home/pi/.driver_analytics/logs/current/recorder_file_ip{nextra}.log | grep -ia outfile')
+        # print(log_lines)
+        log_lines= log_lines.split('\n')
+        # Procurar a primeira linha que contém 'outfile'
+        for line in log_lines:
+            if 'outfile' in line:
+                # Extrair o nome do arquivo que contém a data e hora
+                start_index = line.find('outfile:') + len('outfile: ')
+                file_path = line[start_index:].strip().split(' ')[0]  # Pega o caminho do arquivo
+
+                # Extrair a parte da data e hora do arquivo: '20240903_142816'
+                date_time_str = file_path.split('/')[-1].replace('_NF.mp4', '').replace('_', '')  # Exemplo: '20240903_142816'
+                
+                # Converte a string para um objeto datetime, sem o sublinhado
+                first_time = datetime.strptime(date_time_str, '%Y%m%d%H%M%S')
+                break  # Interrompe o loop após encontrar a primeira ocorrência de 'outfile'
+
+        if first_time is None:
+            print("Nenhuma linha com 'outfile' foi encontrada.")
+            return time_difference
+        # print(first_time)
+        # Obter o horário atual
+        current_time = datetime.now()
+
+        # Calcular a diferença em minutos
+        time_difference = (current_time - first_time).total_seconds() / 60.0
+        # print(time_difference)
+
+    return time_difference
+    
+
 def calculate_recorded_files(dif_time):
     if dif_time !=0:
         count,error= run_bash_command('cat /home/pi/.driver_analytics/logs/current/recorder_file.log | grep -ia outfile | wc -l')
@@ -1309,6 +1349,31 @@ def calculate_recorded_files(dif_time):
             return True
     else:
         return False
+    
+def calculate_recorded_files_extra(dif_time,nextra):
+    if dif_time !=0:
+        count,error= run_bash_command(f'cat /home/pi/.driver_analytics/logs/current/recorder_file_ip{nextra}.log | grep -ia outfile | wc -l')
+        count = float(count)
+        # print(count)
+        # print(type(count))
+        dif_videos = count - dif_time
+        # print(dif_videos)
+        if dif_videos > 2:
+            return False
+        else:
+            return True
+    else:
+        return False
+    
+def checking_system_date_and_time():
+    if os.path.exists('/home/pi/.driver_analytics/logs/current/gps.log'):
+        log_lines, error= run_bash_command('cat /home/pi/.driver_analytics/logs/current/gps.log | grep -ia update_system_date')
+        if log_lines:
+            return True
+        else:
+            False
+    else:
+        return False    
     
 
 def main():
@@ -1339,6 +1404,9 @@ def main():
         elif AS1_CAMERA_TYPE ==1:
             verificar_e_criar_tabela(pathi)
             path_e=pathi
+        elif AS1_CAMERA_TYPE ==2:
+            verificar_e_criar_tabela(pathex)
+            path_ex=pathex
         api_thread = threading.Thread(target=enviar_para_api, args=(path_e,pathdriver))
         api_thread.start() # Inicia a thread de postar na api
         # Verifica se não existe banco e tabela e cria os mesmos
@@ -1387,7 +1455,7 @@ def main():
     
     # Verify extra cameras
     if AS1_NUMBER_OF_EXTRA_CAMERAS >0:
-        connect_extra= check_ip_connectivity(ip_extra)
+        connect_extra= check_ip_connectivity(ip_extra1)
     else:
         connect_extra= '0'
     
@@ -1563,18 +1631,58 @@ def main():
             print("File does not exist")
             clean_file(sent_path)
         
+        if AS1_CAMERA_TYPE == 0:
+            ctype= "Externa"
+        elif AS1_CAMERA_TYPE == 1:
+            ctype= "Interna"
+        else:
+            ctype= "extra"
         
-        #checking if have problem to send email
-        dif_tim=calculate_time_difference()
-        resp = calculate_recorded_files(dif_tim)
-        # print(resp)
-        if resp == False:
-            print("Erro na gravação de vídeo")
-            var.append("Erro em gravação de vídeo")
+        #checking of have problem do record video file
+        if checking_system_date_and_time():
+            if AS1_CAMERA_TYPE == 0 or AS1_CAMERA_TYPE == 1:
+                dif_tim=calculate_time_difference()
+                resp = calculate_recorded_files(dif_tim)
+                if resp == False:
+                    print(f"Erro na gravação de vídeo {ctype}")
+                    var.append(f"Erro em gravação de vídeo {ctype}")
+            else:
+                if check_ip_connectivity(ip_extra1) == '1':
+                    dif_tim=calculate_time_difference_extra(1)
+                    resp = calculate_recorded_files_extra(dif_tim,1)
+                    if resp == False:
+                        print(f"Erro na gravação de vídeo extra 1")
+                        var.append(f"Erro em gravação de vídeo extra 1")
+                if check_ip_connectivity(ip_extra2) == '2':
+                    dif_tim=calculate_time_difference_extra(2)
+                    resp = calculate_recorded_files_extra(dif_tim,2)
+                    if resp == False:
+                        print(f"Erro na gravação de vídeo extra 2")
+                        var.append(f"Erro em gravação de vídeo extra 2")
+                if check_ip_connectivity(ip_extra3) == '3':
+                    dif_tim=calculate_time_difference_extra(3)
+                    resp = calculate_recorded_files_extra(dif_tim,3)
+                    if resp == False:
+                        print(f"Erro na gravação de vídeo extra 3")
+                        var.append(f"Erro em gravação de vídeo extra 3")
+                if check_ip_connectivity(ip_extra4) == '4':
+                    dif_tim=calculate_time_difference_extra(4)
+                    resp = calculate_recorded_files_extra(dif_tim,4)
+                    if resp == False:
+                        print(f"Erro na gravação de vídeo extra 4")
+                        var.append(f"Erro em gravação de vídeo extra 4")
+                if check_ip_connectivity(ip_extra5) == '5':
+                    dif_tim=calculate_time_difference_extra(5)
+                    resp = calculate_recorded_files_extra(dif_tim,5)
+                    if resp == False:
+                        print(f"Erro na gravação de vídeo extra 5")
+                        var.append(f"Erro em gravação de vídeo extra 5")
+                    
             
         if len(var) > 0:
             for item in var:
                 answer += f"{item}\n"
+                print(answer)
             verfied = verify_send_email(var, problems_path, sent_path)
             if verfied and conncetion_chk:    
                 send_email_message(vehicle_plate,answer, filename, error_message=None)
