@@ -84,9 +84,9 @@ def check_ip_connectivity(ip_address):
         socket.create_connection((ip_address, 80))
         # with socket.create_connection((ip_address, 80)) as connection:
         #     return ' 1 '
-        return ' 1 '
+        return '1'
     except OSError:
-        return ' 0 '
+        return '0'
  
 def get_machine_storage():
     result = os.statvfs('/')
@@ -1365,15 +1365,35 @@ def calculate_recorded_files_extra(dif_time,nextra):
     else:
         return False
     
-def checking_system_date_and_time():
-    if os.path.exists('/home/pi/.driver_analytics/logs/current/gps.log'):
-        log_lines, error= run_bash_command('cat /home/pi/.driver_analytics/logs/current/gps.log | grep -ia update_system_date')
-        if log_lines:
-            return True
-        else:
-            False
-    else:
-        return False    
+def checking_system_date_and_time(value):
+    
+    pahte='/home/pi/.driver_analytics/logs/current/gps.log'
+    pathi='/home/pi/.driver_analytics/logs/current/camera.log'
+    pathex='/home/pi/.driver_analytics/logs/current/camera_ip1.log'
+    
+    if value == 0:
+        if os.path.exists(pathe):
+            log_lines, error= run_bash_command(f'cat {pathe} | grep -ia update_system_date')
+            if log_lines:
+                return True
+            else:
+                False
+    
+    if value ==1:
+        if os.path.exists(pathi):
+            log_lines, error= run_bash_command(f'cat {pathi} | grep -ia "data atualizada"')
+            if log_lines:
+                return True
+            else:
+                False
+                
+    if value ==2:
+        if os.path.exists(pathex):
+            log_lines, error= run_bash_command(f'cat {pathex} | grep -ia "data atualizada"')
+            if log_lines:
+                return True
+            else:
+                False  
     
 
 def main():
@@ -1396,7 +1416,7 @@ def main():
     # AS1_NUMBER_OF_SLAVE_DEVICES = int(config.get("NUMBER_OF_SLAVE_DEVICES", ""))
     AS1_ALWAYS_ON_MODE = config.get("ALWAYS_ON_MODE", "") if config.get("ALWAYS_ON_MODE", "") != "" else 0
     AS1_NUMBER_OF_EXTRA_CAMERAS = int(config.get("NUMBER_OF_EXTRA_CAMERAS", "")) if config.get("NUMBER_OF_EXTRA_CAMERAS", "") != "" else 0   
-    
+    print(AS1_NUMBER_OF_EXTRA_CAMERAS)
     if flag == 0:
         if AS1_CAMERA_TYPE == 0:
             verificar_e_criar_tabela(pathe)
@@ -1406,7 +1426,7 @@ def main():
             path_e=pathi
         elif AS1_CAMERA_TYPE ==2:
             verificar_e_criar_tabela(pathex)
-            path_ex=pathex
+            path_e=pathex
         api_thread = threading.Thread(target=enviar_para_api, args=(path_e,pathdriver))
         api_thread.start() # Inicia a thread de postar na api
         # Verifica se não existe banco e tabela e cria os mesmos
@@ -1419,6 +1439,8 @@ def main():
             filename = f"/home/pi/.driver_analytics/health/driver_analytics_health_e_{current_date}.csv"
         elif AS1_BRIDGE_MODE == 2:
             filename = f"/home/pi/.driver_analytics/health/driver_analytics_health_i_{current_date}.csv"
+        elif AS1_BRIDGE_MODE == 3:
+            filename = f"/home/pi/.driver_analytics/health/driver_analytics_health_ex_{current_date}.csv"
     
     if check_rfid_log() ==1:
         var.append("RFID não detectado")
@@ -1446,6 +1468,8 @@ def main():
         connect_int_ext = check_ip_connectivity(ip_interna)
     elif AS1_CAMERA_TYPE ==1:
         connect_int_ext = check_ip_connectivity(ip_externa)
+    elif AS1_CAMERA_TYPE ==2:
+        connect_int_ext = check_ip_connectivity(ip_externa)
     else:
         connect_int_ext=None
         var.append("Erro na conexão interna e externa")
@@ -1453,9 +1477,17 @@ def main():
     # Verify always on mode
     modee=AS1_ALWAYS_ON_MODE if AS1_ALWAYS_ON_MODE != '' else 0
     
-    # Verify extra cameras
-    if AS1_NUMBER_OF_EXTRA_CAMERAS >0:
+    # Verify extra camera(only for 1 camera extra with cable ethernet)
+    if AS1_NUMBER_OF_EXTRA_CAMERAS == 1:
         connect_extra= check_ip_connectivity(ip_extra1)
+    elif AS1_NUMBER_OF_EXTRA_CAMERAS >2:
+        con1= check_ip_connectivity(ip_extra1)
+        con2= check_ip_connectivity(ip_extra2)
+        con3= check_ip_connectivity(ip_extra3)
+        con4= check_ip_connectivity(ip_extra4)
+        con5= check_ip_connectivity(ip_extra5)
+        cont = int(con1)+int(con2)+int(con3)+int(con4)+int(con5)
+        connect_extra= cont
     else:
         connect_extra= '0'
     
@@ -1486,26 +1518,36 @@ def main():
     #Verify central status and read camera and gps
     teste = check_central_enable() 
     if teste == 1:
-        print("Central ligado, verificado de forma normal...")
-        detected,available = check_camera_status(AS1_BRIDGE_MODE) # detecta e verifica o camera
-        if int(available) == 0:
-            var.append("Erro na camera")
-        # Verifica GPS
         if AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE ==1:
-            fix, sig_str, sat_num = chk_gps4() # modificado para teste
+            print("Central ligado, verificado de forma normal...")
+            detected,available = check_camera_status(AS1_BRIDGE_MODE) # detecta e verifica o camera
+            if int(available) == 0:
+                var.append("Erro na camera")
+            # Verifica GPS
+            if AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE ==1:
+                fix, sig_str, sat_num = chk_gps4() # modificado para teste
+            else:
+                fix, sig_str, sat_num = None,None,None
         else:
+            print("Central ligado, Verificando rasp extra...")
+            detected,available = None,None
             fix, sig_str, sat_num = None,None,None
                
     elif teste == 0:
-        print("Central desligado, checando foto com raspistill e gps...")
-        comandext = "sudo pkill camera"
-        out1=run_bash_command(comandext)
-        detected,available = check_camera_status2() # detecta e verifica o camera
-        if int(available) == 0:
-            var.append("Erro na camera")
-        if AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE ==1: # Verifica GPS
-            fix, sig_str, sat_num = initialize_and_read_gps(port, baudrate, final_baudrate)
+        if AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE ==1:
+            print("Central desligado, checando foto com raspistill e gps...")
+            comandext = "sudo pkill camera"
+            out1,err=run_bash_command(comandext)
+            detected,available = check_camera_status2() # detecta e verifica o camera
+            if int(available) == 0:
+                var.append("Erro na camera")
+            if AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE ==1: # Verifica GPS
+                fix, sig_str, sat_num = initialize_and_read_gps(port, baudrate, final_baudrate)
+            else:
+                fix, sig_str, sat_num = None,None,None
         else:
+            print("Central desligado, Verificando rasp extra...")
+            detected,available = None,None
             fix, sig_str, sat_num = None,None,None
     
     # Verify flag to create a database or create a csv file
@@ -1555,6 +1597,8 @@ def main():
             adicionar_dados(data_values,pathe) 
         elif AS1_CAMERA_TYPE ==1:
             adicionar_dados(data_values,pathi)
+        elif AS1_CAMERA_TYPE ==2:
+            adicionar_dados(data_values,pathex)
     elif flag == 1:
         conn = create_connection(pathdriver)
         with conn:
@@ -1635,48 +1679,70 @@ def main():
             ctype= "Externa"
         elif AS1_CAMERA_TYPE == 1:
             ctype= "Interna"
-        else:
+        elif AS1_CAMERA_TYPE == 2:
             ctype= "extra"
         
         #checking of have problem do record video file
-        if checking_system_date_and_time():
+        if checking_system_date_and_time(AS1_CAMERA_TYPE):
             if AS1_CAMERA_TYPE == 0 or AS1_CAMERA_TYPE == 1:
                 dif_tim=calculate_time_difference()
                 resp = calculate_recorded_files(dif_tim)
                 if resp == False:
                     print(f"Erro na gravação de vídeo {ctype}")
                     var.append(f"Erro em gravação de vídeo {ctype}")
-            else:
+                else:
+                    print(f"Gravação de vídeo {ctype} OK")
+            else:   
                 if check_ip_connectivity(ip_extra1) == '1':
                     dif_tim=calculate_time_difference_extra(1)
                     resp = calculate_recorded_files_extra(dif_tim,1)
                     if resp == False:
                         print(f"Erro na gravação de vídeo extra 1")
                         var.append(f"Erro em gravação de vídeo extra 1")
-                if check_ip_connectivity(ip_extra2) == '2':
+                    else:
+                        print("Gravação de vídeo extra 1 OK")
+                else:
+                    print("Erro na conexão com a câmera extra 1")
+                if check_ip_connectivity(ip_extra2) == '1':
                     dif_tim=calculate_time_difference_extra(2)
                     resp = calculate_recorded_files_extra(dif_tim,2)
                     if resp == False:
                         print(f"Erro na gravação de vídeo extra 2")
                         var.append(f"Erro em gravação de vídeo extra 2")
-                if check_ip_connectivity(ip_extra3) == '3':
+                    else:
+                        print("Gravação de vídeo extra 2 OK")
+                else:
+                    print("Erro na conexão com a câmera extra 2")
+                if check_ip_connectivity(ip_extra3) == '1':
                     dif_tim=calculate_time_difference_extra(3)
                     resp = calculate_recorded_files_extra(dif_tim,3)
                     if resp == False:
                         print(f"Erro na gravação de vídeo extra 3")
                         var.append(f"Erro em gravação de vídeo extra 3")
-                if check_ip_connectivity(ip_extra4) == '4':
+                    else:
+                        print("Gravação de vídeo extra 3 OK")
+                else:
+                    print("Erro na conexão com a câmera extra 3")
+                if check_ip_connectivity(ip_extra4) == '1':
                     dif_tim=calculate_time_difference_extra(4)
                     resp = calculate_recorded_files_extra(dif_tim,4)
                     if resp == False:
                         print(f"Erro na gravação de vídeo extra 4")
                         var.append(f"Erro em gravação de vídeo extra 4")
-                if check_ip_connectivity(ip_extra5) == '5':
+                    else:
+                        print("Gravação de vídeo extra 4 OK")
+                else:
+                    print("Erro na conexão com a câmera extra 4")
+                if check_ip_connectivity(ip_extra5) == '1':
                     dif_tim=calculate_time_difference_extra(5)
                     resp = calculate_recorded_files_extra(dif_tim,5)
                     if resp == False:
                         print(f"Erro na gravação de vídeo extra 5")
                         var.append(f"Erro em gravação de vídeo extra 5")
+                    else:
+                        print("Gravação de vídeo extra 5 OK")
+                else:
+                    print("Erro na conexão com a câmera extra 5")
                     
             
         if len(var) > 0:
