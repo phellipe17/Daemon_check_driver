@@ -73,9 +73,9 @@ def check_internet():
         socket.create_connection(("www.google.com", 80))
         # with socket.create_connection((ip_address, 80)) as connection:
         #     return ' 1 '
-        return ' 1 '
+        return '1'
     except OSError:
-        return ' 0 '
+        return '0'
 
 
 def check_ip_connectivity(ip_address):
@@ -1518,7 +1518,7 @@ def main():
     #Verify central status and read camera and gps
     teste = check_central_enable() 
     if teste == 1:
-        if AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE ==1:
+        if AS1_CAMERA_TYPE == 0 or AS1_CAMERA_TYPE ==1:
             print("Central ligado, verificado de forma normal...")
             detected,available = check_camera_status(AS1_BRIDGE_MODE) # detecta e verifica o camera
             if int(available) == 0:
@@ -1534,7 +1534,7 @@ def main():
             fix, sig_str, sat_num = None,None,None
                
     elif teste == 0:
-        if AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE ==1:
+        if AS1_CAMERA_TYPE == 0 or AS1_CAMERA_TYPE ==1:
             print("Central desligado, checando foto com raspistill e gps...")
             comandext = "sudo pkill camera"
             out1,err=run_bash_command(comandext)
