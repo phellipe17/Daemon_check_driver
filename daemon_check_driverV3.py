@@ -507,67 +507,76 @@ def find_last_camera_alive_line(log_file_path):
 def check_camera_status(mode): # é passado o mode que é para verificar na camera interna no log, somente camra interna descreve isso no log
     logpath = "/home/pi/.driver_analytics/logs/current/camera.log"
     updated=0
-    available = ' 1 '
-    if mode == 2:
+    available = '1'
+    if mode <= 2:
         updated = verificar_horario_camera()
-    command_frame=f"tail -n10 {logpath}"  
-    result, error=run_bash_command(command_frame)
-    if "Error opening the camera" in result:
-        available = ' 0 '
-    else:
-        acurracy_line = f"tail -n5 {logpath} | grep -ia 'Camera is alive'"
-        last_log_line,error2=run_bash_command(acurracy_line)
-        data_hora_ultima_msg_str = str(last_log_line).split(']')[0].strip('[')[-19:]
-        timestamp_ultima_msg = time.mktime(time.strptime(data_hora_ultima_msg_str, '%d/%m/%Y %H:%M:%S'))
-        
-        # Calcular a diferença de tempo
-        diferenca_tempo = time.time() - timestamp_ultima_msg
-        if(diferenca_tempo > 300 and updated == 0):
-            available = ' 0 '
-        elif (diferenca_tempo > 300 and updated == 1):
-            first_try = find_last_camera_alive_line(acurracy_line)
-            time.sleep(90)
-            second_try = find_last_camera_alive_line(acurracy_line)
-            if first_try == second_try:
-                available = ' 0 '
-            else:
-                available = ' 1 '
-        # else:
-        #     available = ' 0 '
+        command_frame=f"tail -n10 {logpath}"  
+        result, error=run_bash_command(command_frame)
+        if "Error opening the camera" in result:
+            available = '0'
+        else:
+            acurracy_line = f"tail -n5 {logpath} | grep -ia 'Camera is alive'"
+            last_log_line,error2=run_bash_command(acurracy_line)
+            data_hora_ultima_msg_str = str(last_log_line).split(']')[0].strip('[')[-19:]
+            timestamp_ultima_msg = time.mktime(time.strptime(data_hora_ultima_msg_str, '%d/%m/%Y %H:%M:%S'))
 
-    command = "vcgencmd get_camera"
-    output, error = run_bash_command(command)
-    detected = ' 1 ' if "detected=1" in output else ' 0 '
-    
-        
+            # Calcular a diferença de tempo
+            diferenca_tempo = time.time() - timestamp_ultima_msg
+            if(diferenca_tempo > 300 and updated == 0):
+                available = '0'
+            elif (diferenca_tempo > 300 and updated == 1):
+                first_try = find_last_camera_alive_line(acurracy_line)
+                time.sleep(90)
+                second_try = find_last_camera_alive_line(acurracy_line)
+                if first_try == second_try:
+                    available = '0'
+                else:
+                    available = '1'
+            # else:
+            #     available = ' 0 '
+
+        command = "vcgencmd get_camera"
+        output, error = run_bash_command(command)
+        detected = '1' if "detected=1" in output else '0'
+    else:
+        detected, available = None, None
+         
     return detected, available
 
-def check_camera_status2():
-    try:
-        subprocess.run(
-            ["raspistill", "-o", "/tmp/camera_test.jpg", "-w", "640", "-h", "480", "-q", "1", "-n"],
-            check=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
-        )
-        if not os.path.exists("/tmp/camera_test.jpg"):
-            raise RuntimeError("Foto não foi criada apesar do comando ter sido executado com sucesso.")
-        available = "1"
-        print("Foi possível tirar a foto, a câmera está disponível")
-    except subprocess.CalledProcessError:
-        available = "0"
-        print("Não foi possível tirar a foto, a câmera não está disponível")
-    except FileNotFoundError:
-        available = "0"
-        print("O comando 'raspistill' não foi encontrado.")
-    except Exception as e:
-        available = "0"
-        print(f"Ocorreu um erro inesperado: {e}")
-    
-    command = "vcgencmd get_camera"
-    output, error = run_bash_command(command)
-    detected = "1" if "detected=1" in output else "0"
-    # connected = "1" if "supported=1" in output else "0"
+def check_camera_status2(mode):
+    available = '0'
+    detected = '0'
+    if mode <= 2:
+        try:
+            subprocess.run(
+                ["raspistill", "-o", "/tmp/camera_test.jpg", "-w", "640", "-h", "480", "-q", "1", "-n"],
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+            if not os.path.exists("/tmp/camera_test.jpg"):
+                raise RuntimeError("Foto não foi criada apesar do comando ter sido executado com sucesso.")
+            else:
+               available = "1"
+               print("Foto tirada com sucesso, câmera disponível.")
+            print("Foi possível tirar a foto, a câmera está disponível")
+        except subprocess.CalledProcessError:
+            available = "0"
+            print("Não foi possível tirar a foto, a câmera não está disponível")
+        except FileNotFoundError:
+            available = "0"
+            print("O comando 'raspistill' não foi encontrado.")
+        except Exception as e:
+            available = "0"
+            print(f"Ocorreu um erro inesperado: {e}")
+
+        # Verificando o status da câmera com vcgencmd
+        command = "vcgencmd get_camera"
+        output, error = run_bash_command(command)
+        detected = '1' if "detected=1" in output else '0'
+        
+    else:
+        detected, available = None, None
         
     return detected, available  
 
@@ -974,8 +983,10 @@ def load_config(filename):
     config = {}
     with open(filename) as f:
         for line in f:
-            key, value = line.strip().split("=")
-            config[key] = value
+            line = line.strip()
+            if "=" in line:
+                key, value = line.split("=", 1)  # Divide apenas no primeiro '='
+                config[key] = value
     return config
 
 # function to create a connection with database
@@ -1367,7 +1378,7 @@ def calculate_recorded_files_extra(dif_time,nextra):
     
 def checking_system_date_and_time(value):
     
-    pahte='/home/pi/.driver_analytics/logs/current/gps.log'
+    pathe='/home/pi/.driver_analytics/logs/current/gps.log'
     pathi='/home/pi/.driver_analytics/logs/current/camera.log'
     pathex='/home/pi/.driver_analytics/logs/current/camera_ip1.log'
     
@@ -1377,7 +1388,7 @@ def checking_system_date_and_time(value):
             if log_lines:
                 return True
             else:
-                False
+                return False
     
     if value ==1:
         if os.path.exists(pathi):
@@ -1385,7 +1396,7 @@ def checking_system_date_and_time(value):
             if log_lines:
                 return True
             else:
-                False
+                return False
                 
     if value ==2:
         if os.path.exists(pathex):
@@ -1393,7 +1404,8 @@ def checking_system_date_and_time(value):
             if log_lines:
                 return True
             else:
-                False  
+                return False
+    return False  
     
 
 def main():
@@ -1411,12 +1423,15 @@ def main():
     var=[]
     
     # Guardando os valores das variavel mode em config
-    AS1_BRIDGE_MODE = int(config.get("BRIDGE_MODE", ""))
-    AS1_CAMERA_TYPE = int(config.get("CAMERA_TYPE", ""))
+    AS1_BRIDGE_MODE = int(config.get("BRIDGE_MODE", 0))
+    AS1_CAMERA_TYPE = int(config.get("CAMERA_TYPE", 0))
     # AS1_NUMBER_OF_SLAVE_DEVICES = int(config.get("NUMBER_OF_SLAVE_DEVICES", ""))
-    AS1_ALWAYS_ON_MODE = config.get("ALWAYS_ON_MODE", "") if config.get("ALWAYS_ON_MODE", "") != "" else 0
-    AS1_NUMBER_OF_EXTRA_CAMERAS = int(config.get("NUMBER_OF_EXTRA_CAMERAS", "")) if config.get("NUMBER_OF_EXTRA_CAMERAS", "") != "" else 0   
-    print(AS1_NUMBER_OF_EXTRA_CAMERAS)
+    AS1_ALWAYS_ON_MODE = int(config.get("ALWAYS_ON_MODE", 0))
+    AS1_NUMBER_OF_EXTRA_CAMERAS = int(config.get("NUMBER_OF_EXTRA_CAMERAS", 0))  
+    # print(type(AS1_CAMERA_TYPE))
+    # print(AS1_CAMERA_TYPE)
+    # print(type(AS1_NUMBER_OF_EXTRA_CAMERAS))
+    # print(AS1_NUMBER_OF_EXTRA_CAMERAS)
     if flag == 0:
         if AS1_CAMERA_TYPE == 0:
             verificar_e_criar_tabela(pathe)
@@ -1480,7 +1495,7 @@ def main():
     # Verify extra camera(only for 1 camera extra with cable ethernet)
     if AS1_NUMBER_OF_EXTRA_CAMERAS == 1:
         connect_extra= check_ip_connectivity(ip_extra1)
-    elif AS1_NUMBER_OF_EXTRA_CAMERAS >2:
+    elif AS1_NUMBER_OF_EXTRA_CAMERAS >2 and AS1_CAMERA_TYPE == 2:
         con1= check_ip_connectivity(ip_extra1)
         con2= check_ip_connectivity(ip_extra2)
         con3= check_ip_connectivity(ip_extra3)
@@ -1538,7 +1553,7 @@ def main():
             print("Central desligado, checando foto com raspistill e gps...")
             comandext = "sudo pkill camera"
             out1,err=run_bash_command(comandext)
-            detected,available = check_camera_status2() # detecta e verifica o camera
+            detected,available = check_camera_status2(AS1_BRIDGE_MODE) # detecta e verifica o camera
             if int(available) == 0:
                 var.append("Erro na camera")
             if AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE ==1: # Verifica GPS
@@ -1682,17 +1697,22 @@ def main():
         elif AS1_CAMERA_TYPE == 2:
             ctype= "extra"
         
+        print(ctype)
         #checking of have problem do record video file
         if checking_system_date_and_time(AS1_CAMERA_TYPE):
             if AS1_CAMERA_TYPE == 0 or AS1_CAMERA_TYPE == 1:
+                print("checando somente a camera principal")
                 dif_tim=calculate_time_difference()
+                # print(dif_tim)
                 resp = calculate_recorded_files(dif_tim)
+                # print(resp)
                 if resp == False:
                     print(f"Erro na gravação de vídeo {ctype}")
                     var.append(f"Erro em gravação de vídeo {ctype}")
                 else:
                     print(f"Gravação de vídeo {ctype} OK")
-            else:   
+            else:
+                print("checando camera extra")   
                 if check_ip_connectivity(ip_extra1) == '1':
                     dif_tim=calculate_time_difference_extra(1)
                     resp = calculate_recorded_files_extra(dif_tim,1)

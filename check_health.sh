@@ -100,16 +100,16 @@ check_python_serial(){
 
 
 
-check_udev_if_needed(){
-    if [ -f $HOME_PATH"/.driver_analytics/mode" ]; then
-        if grep -q "BRIDGE_MODE=2" $HOME_PATH"/.driver_analytics/mode"; then
-            echo "BRIDGE_MODE=2 exists"
+check_udev_if_needed() {
+    if [ -f "$HOME_PATH/.driver_analytics/mode" ]; then
+        if grep -q "BRIDGE_MODE=2" "$HOME_PATH/.driver_analytics/mode" || grep -q "BRIDGE_MODE=3" "$HOME_PATH/.driver_analytics/mode"; then
+            echo "BRIDGE_MODE=2 ou BRIDGE_MODE=3 existe"
             echo "Não precisa modificar regras UDEV"
         else
             check_udev_rules
         fi
     else
-        echo "File does not exist"
+        echo "Arquivo não existe"
     fi
 }
 
