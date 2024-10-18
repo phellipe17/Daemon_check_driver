@@ -1154,7 +1154,7 @@ def send_email_message(placa, problema, csv_file_path, mode="cdl", error_message
 
         msg['Subject'] = subject
         msg['From'] = "cco@motora.ai"
-        msg['To'] = "joao.guimaraes@motora.ai, phellipe.santos@motora.ai, luiz@motora.ai"
+        msg['To'] = "joao.guimaraes@motora.ai, phellipe.santos@motora.ai, luiz@motora.ai, wellington.vieira@motora.ai"
 
         if csv_file_path:
             part = MIMEBase('application', 'octet-stream')
@@ -1479,15 +1479,16 @@ def main():
     uptime=get_system_uptime()
     
     # Verify internal and external connection
-    if AS1_CAMERA_TYPE == 0:
+    if AS1_CAMERA_TYPE == 0 and AS1_BRIDGE_MODE != 0 and ig == 1:
         connect_int_ext = check_ip_connectivity(ip_interna)
-    elif AS1_CAMERA_TYPE ==1:
+    elif AS1_CAMERA_TYPE ==1 and AS1_BRIDGE_MODE != 0:
         connect_int_ext = check_ip_connectivity(ip_externa)
-    elif AS1_CAMERA_TYPE ==2:
+    elif AS1_CAMERA_TYPE ==2 and AS1_BRIDGE_MODE != 0:
         connect_int_ext = check_ip_connectivity(ip_externa)
     else:
-        connect_int_ext=None
-        var.append("Erro na conexão interna e externa")
+        connect_int_ext=0
+        if ig ==1 and connect_int_ext==0:
+            var.append("Erro na conexão interna e externa")
     
     # Verify always on mode
     modee=AS1_ALWAYS_ON_MODE if AS1_ALWAYS_ON_MODE != '' else 0
@@ -1495,6 +1496,7 @@ def main():
     # Verify extra camera(only for 1 camera extra with cable ethernet)
     if AS1_NUMBER_OF_EXTRA_CAMERAS == 1:
         connect_extra= check_ip_connectivity(ip_extra1)
+        print("checando camera extra ")
     elif AS1_NUMBER_OF_EXTRA_CAMERAS >2 and AS1_CAMERA_TYPE == 2:
         con1= check_ip_connectivity(ip_extra1)
         con2= check_ip_connectivity(ip_extra2)
@@ -1504,7 +1506,7 @@ def main():
         cont = int(con1)+int(con2)+int(con3)+int(con4)+int(con5)
         connect_extra= cont
     else:
-        connect_extra= '0'
+        connect_extra= None
     
     # Verify modem process
     if AS1_BRIDGE_MODE == 0 or AS1_BRIDGE_MODE ==1: # 0 master sem slave / 1 master com slave / 2 e slave
@@ -1699,7 +1701,7 @@ def main():
         
         print(ctype)
         #checking of have problem do record video file
-        if checking_system_date_and_time(AS1_CAMERA_TYPE):
+        if checking_system_date_and_time(AS1_CAMERA_TYPE) and ig != 0:
             if AS1_CAMERA_TYPE == 0 or AS1_CAMERA_TYPE == 1:
                 print("checando somente a camera principal")
                 dif_tim=calculate_time_difference()
@@ -1711,6 +1713,16 @@ def main():
                     var.append(f"Erro em gravação de vídeo {ctype}")
                 else:
                     print(f"Gravação de vídeo {ctype} OK")
+
+                if AS1_CAMERA_TYPE == 0 and connect_extra == '1' :
+                    dif_tim=calculate_time_difference_extra(1)
+                    resp = calculate_recorded_files_extra(dif_tim,1)
+                    if resp == False:
+                        print(f"Erro na gravação de vídeo extra 1")
+                        var.append(f"Erro em gravação de vídeo extra 1")
+                    else:
+                        print("Gravação de vídeo extra 1 OK")
+                
             else:
                 print("checando camera extra")   
                 if check_ip_connectivity(ip_extra1) == '1':
