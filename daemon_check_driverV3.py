@@ -1496,7 +1496,8 @@ def main():
     # Verify extra camera(only for 1 camera extra with cable ethernet)
     if AS1_NUMBER_OF_EXTRA_CAMERAS == 1:
         connect_extra= check_ip_connectivity(ip_extra1)
-        print("checando camera extra ")
+        if connect_extra == '0' and ig == 1:
+            var.append("Erro na conexão da camera extra")
     elif AS1_NUMBER_OF_EXTRA_CAMERAS >2 and AS1_CAMERA_TYPE == 2:
         con1= check_ip_connectivity(ip_extra1)
         con2= check_ip_connectivity(ip_extra2)
@@ -1505,6 +1506,9 @@ def main():
         con5= check_ip_connectivity(ip_extra5)
         cont = int(con1)+int(con2)+int(con3)+int(con4)+int(con5)
         connect_extra= cont
+        failed = 5 - cont
+        if failed > 0:
+            var.append(f"Erro na conexão em {failed} cameras extras")
     else:
         connect_extra= None
     
