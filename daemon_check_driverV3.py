@@ -1099,11 +1099,11 @@ def get_system_uptime():
     return round(uptime_seconds, 2)
 
 def check_dmesg_for_errors():
-    vet2 = []
-    command = "dmesg | grep -ia 'usb cable is bad'"
-    output, error = run_bash_command(command)
-    if output:
-        vet2.append("Maybe USB cable is bad")
+    unique_errors = set()
+    # command = "dmesg | grep -ia 'usb cable is bad'"
+    # output, error = run_bash_command(command)
+    # if output:
+    #     vet2.append("Maybe USB cable is bad")
     try:
         result = subprocess.run(['dmesg'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         dmesg_output = result.stdout
@@ -1113,6 +1113,7 @@ def check_dmesg_for_errors():
     errors = {
         # "Under-voltage detected!": "Under-voltage",
         # "Over-current detected!": "Over-current",
+        "usb cable is bad": "Maybe USB cable is bad",
         "I/O error": "I/O Error",
         "device descriptor read/64, error": "USB Device Error",
         "Out of memory:": "Out of Memory",
@@ -1123,8 +1124,8 @@ def check_dmesg_for_errors():
     for line in dmesg_output.splitlines():
         for key, value in errors.items():
             if key in line:
-                vet2.append(value)
-    return vet2
+                unique_errors.add(value)
+    return list(unique_errors)
     
 def send_email_message(placa, problema, csv_file_path, mode="cdl", error_message=None):
 
@@ -1134,7 +1135,7 @@ def send_email_message(placa, problema, csv_file_path, mode="cdl", error_message
         if mode == "api":
             text = "[API] O veículo de placa " + placa + " apresentou o problema "  
         if mode == "cdl":
-            text = "[CDL] O veículo de placa " + placa + ": "+ problema 
+            text = "[CDL] O veículo de placa " + placa + ": \n"+ problema 
         if mode == "calib":
             text = "[CALIB] O veículo de placa " + placa + " apresentou o problema " 
 
@@ -1219,19 +1220,15 @@ def read_registered_problems(caminho_arquivo):
     try:
         with open(caminho_arquivo, "r") as file:
             linhas = file.readlines()
-        if linhas != None:
-            # Ignora as duas primeiras linhas (data e horário)
-            problemas = linhas[2:]
-            # Concatena todas as linhas restantes e remove espaços extras
-            problemas_como_string = "".join(problemas).strip()
-            # Divide a string em uma lista de problemas, separando por vírgula
-            lista_de_problemas = [problema.strip() for problema in problemas_como_string.split(',')]
-        else:
-            lista_de_problemas = []
+
+        # Ignora as duas primeiras linhas (data e horário) e remove espaços vazios
+        lista_de_problemas = [problema.strip() for problema in linhas[2:] if problema.strip()]
+        
         return lista_de_problemas
     
     except FileNotFoundError:
         return []
+
     
 # Função para ler o conteúdo do arquivo de problemas
 def ler_conteudo_arquivo(caminho):
@@ -1252,7 +1249,10 @@ def Register_sent_email(sent_path):
 def verify_send_email(var, problems_path, sent_path):
     enviado=ler_conteudo_arquivo(sent_path)
     prob=read_registered_problems(problems_path)
-    dif=0
+    print("imprimindo vetores problemas:")
+    print(prob)
+    print(var)
+    dif=False
     if enviado.startswith("Enviado em:"):
         # Extrai a parte da data e do horário
         data_horario_str = enviado.replace("Enviado em: ", "")
@@ -1266,12 +1266,12 @@ def verify_send_email(var, problems_path, sent_path):
     if len(var) > 0:
         for item in var:
             if item not in prob:
-                prob.append(item)
-                dif=1    
+                # prob.append(item)
+                dif=True    
     # dif_timestamp = datetime.now() - enviado_datetime
     #dif_timpestamp if you want to compare the time of last sent email
-    # if dif_timestamp > timedelta(hours=3) or dif == 1:
-    if dif == 1:
+    # if dif_timestamp > timedelta(hours=3) or dif == True:
+    if dif:
         return True
     else:
         return False
@@ -1500,15 +1500,25 @@ def main():
             var.append("Erro na conexão da camera extra")
     elif AS1_NUMBER_OF_EXTRA_CAMERAS >2 and AS1_CAMERA_TYPE == 2:
         con1= check_ip_connectivity(ip_extra1)
+        if con1 == '0':
+            var.append("Erro na conexão da camera extra 1")
         con2= check_ip_connectivity(ip_extra2)
+        if con2 == '0':
+            var.append("Erro na conexão da camera extra 2")
         con3= check_ip_connectivity(ip_extra3)
+        if con3 == '0':
+            var.append("Erro na conexão da camera extra 3")
         con4= check_ip_connectivity(ip_extra4)
+        if con4 == '0':
+            var.append("Erro na conexão da camera extra 4")
         con5= check_ip_connectivity(ip_extra5)
+        if con5 == '0':
+            var.append("Erro na conexão da camera extra 5")
         cont = int(con1)+int(con2)+int(con3)+int(con4)+int(con5)
         connect_extra= cont
         failed = 5 - cont
         if failed > 0:
-            var.append(f"Erro na conexão em {failed} cameras extras")
+            var.append(f"Erro na conexão em {failed} camera(s) extra(s)")
     else:
         connect_extra= None
     
@@ -1713,7 +1723,7 @@ def main():
                 resp = calculate_recorded_files(dif_tim)
                 # print(resp)
                 if resp == False:
-                    print(f"Erro na gravação de vídeo {ctype}")
+                    # print(f"Erro na gravação de vídeo {ctype}")
                     var.append(f"Erro em gravação de vídeo {ctype}")
                 else:
                     print(f"Gravação de vídeo {ctype} OK")
@@ -1722,7 +1732,7 @@ def main():
                     dif_tim=calculate_time_difference_extra(1)
                     resp = calculate_recorded_files_extra(dif_tim,1)
                     if resp == False:
-                        print(f"Erro na gravação de vídeo extra 1")
+                        # print(f"Erro na gravação de vídeo extra 1")
                         var.append(f"Erro em gravação de vídeo extra 1")
                     else:
                         print("Gravação de vídeo extra 1 OK")
@@ -1737,8 +1747,8 @@ def main():
                         var.append(f"Erro em gravação de vídeo extra 1")
                     else:
                         print("Gravação de vídeo extra 1 OK")
-                else:
-                    print("Erro na conexão com a câmera extra 1")
+                # else:
+                #     print("Erro na conexão com a câmera extra 1")
                 if check_ip_connectivity(ip_extra2) == '1':
                     dif_tim=calculate_time_difference_extra(2)
                     resp = calculate_recorded_files_extra(dif_tim,2)
@@ -1747,8 +1757,8 @@ def main():
                         var.append(f"Erro em gravação de vídeo extra 2")
                     else:
                         print("Gravação de vídeo extra 2 OK")
-                else:
-                    print("Erro na conexão com a câmera extra 2")
+                # else:
+                #     print("Erro na conexão com a câmera extra 2")
                 if check_ip_connectivity(ip_extra3) == '1':
                     dif_tim=calculate_time_difference_extra(3)
                     resp = calculate_recorded_files_extra(dif_tim,3)
@@ -1757,8 +1767,8 @@ def main():
                         var.append(f"Erro em gravação de vídeo extra 3")
                     else:
                         print("Gravação de vídeo extra 3 OK")
-                else:
-                    print("Erro na conexão com a câmera extra 3")
+                # else:
+                #     print("Erro na conexão com a câmera extra 3")
                 if check_ip_connectivity(ip_extra4) == '1':
                     dif_tim=calculate_time_difference_extra(4)
                     resp = calculate_recorded_files_extra(dif_tim,4)
@@ -1767,8 +1777,8 @@ def main():
                         var.append(f"Erro em gravação de vídeo extra 4")
                     else:
                         print("Gravação de vídeo extra 4 OK")
-                else:
-                    print("Erro na conexão com a câmera extra 4")
+                # else:
+                #     print("Erro na conexão com a câmera extra 4")
                 if check_ip_connectivity(ip_extra5) == '1':
                     dif_tim=calculate_time_difference_extra(5)
                     resp = calculate_recorded_files_extra(dif_tim,5)
@@ -1777,8 +1787,8 @@ def main():
                         var.append(f"Erro em gravação de vídeo extra 5")
                     else:
                         print("Gravação de vídeo extra 5 OK")
-                else:
-                    print("Erro na conexão com a câmera extra 5")
+                # else:
+                #     print("Erro na conexão com a câmera extra 5")
                     
             
         if len(var) > 0:
