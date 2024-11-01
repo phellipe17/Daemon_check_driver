@@ -1127,11 +1127,13 @@ def check_dmesg_for_errors():
                 unique_errors.add(value)
     return list(unique_errors)
     
-def send_email_message(placa, problema, csv_file_path, mode="cdl", error_message=None):
+def send_email_message(placa, problema, csv_file_path, mode, error_message=None):
 
     try:
         text_type = 'plain'
-        text = "[PKG] O veículo de placa " + placa + " apresentou o problema " 
+        text = "O veiculo de placa " + placa + " apresentou o problema "
+        if mode == "pkg":
+            text = "[PKG] O veículo de placa " + placa + ": \n"+ problema 
         if mode == "api":
             text = "[API] O veículo de placa " + placa + " apresentou o problema "  
         if mode == "cdl":
@@ -1146,8 +1148,10 @@ def send_email_message(placa, problema, csv_file_path, mode="cdl", error_message
         msg.attach(MIMEText(text, text_type, 'utf-8'))
 
         subject = "[PKG] Veículo com placa " + placa + " está online!"
+        if mode == "pkg":
+            subject = "[PKG] Veículo com placa " + placa + " apresentou problema"
         if mode == "api":
-            subject = "[API] Veículo " + placa + " Trocar acesso da empresa!"
+            subject = "[API] Veículo " + placa + " apresentou problema"
         if mode == "cdl":
             subject = "[CDL] Veículo com placa " + placa + " apresentou o problema "
         if mode == "calib":
@@ -1407,6 +1411,14 @@ def checking_system_date_and_time(value):
                 return False
     return False  
     
+
+def check_unity():
+    command = "sqlite3 .driver_analytics/database/driveranalytics.db 'select * from api_config' | grep -ia pkg"
+    output,erorr= run_bash_command(command)
+    if output!= "":
+        return "pkg"
+    else:
+        return "cdl"
 
 def main():
     directory_path = '/home/pi/.driver_analytics/health/'
@@ -1789,7 +1801,8 @@ def main():
                         print("Gravação de vídeo extra 5 OK")
                 # else:
                 #     print("Erro na conexão com a câmera extra 5")
-                    
+                      
+        alocacao=check_unity()   
             
         if len(var) > 0:
             for item in var:
@@ -1797,7 +1810,7 @@ def main():
                 print(answer)
             verfied = verify_send_email(var, problems_path, sent_path)
             if verfied and conncetion_chk:    
-                send_email_message(vehicle_plate,answer, filename, error_message=None)
+                send_email_message(vehicle_plate,answer, filename,alocacao,error_message=None)
                 clean_file(problems_path)
                 clean_file(sent_path)
                 registrar_problemas(var,problems_path)
@@ -1811,7 +1824,7 @@ def main():
                         conncetion_chk = check_internet()
                         print("Trying to send email...")
                         if conncetion_chk:
-                            send_email_message(vehicle_plate,answer, filename, error_message=None)
+                            send_email_message(vehicle_plate,answer, filename,alocacao, error_message=None)
                             clean_file(problems_path)
                             clean_file(sent_path)
                             registrar_problemas(var,problems_path)
