@@ -6,7 +6,7 @@ REMOTE_PATH="/home/pi/.health_monitor/"
 
 # Defina as listas de veículos
 veiculos_camera_extra=("RQR3A52" "RIP1D52" "RKN4D25" "LTW8H87" "LTY6J39" "RJM4I07" "LVE5J59" "rqr5i94" "RJM5A53")
-veiculos_5_cameras=("RVQ4B26" "RTW2B44")
+veiculos_5_cameras=("RVQ4B26" "RTW2B44" "RVN3E40" "RTP7A11")
 
 # Função para sincronizar o arquivo com um veículo específico
 sync_veiculo5() {
@@ -66,12 +66,14 @@ case $opcao in
         ;;
     3)
         read -p "Digite a placa do veículo que deseja sincronizar: " placa
-        read -p "Digite o número de câmeras (1 ou 5): " cameras
+        read -p "Digite o número 0 se não tiver camera extra 1 para 1 camera ou 5 para 5 cameras: " cameras
         
         if [ "$cameras" -eq 1 ]; then
             sync_veiculo1 "$placa"
         elif [ "$cameras" -eq 5 ]; then
             sync_veiculo5 "$placa"
+        elif [ "$cameras" -eq 0 ]; then
+            sync_veiculo1 "$placa"
         else
             echo "Número de câmeras inválido. Saindo do script."
             exit 1
